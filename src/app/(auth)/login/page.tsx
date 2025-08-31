@@ -49,7 +49,7 @@ export default function LoginPage() {
           <input
             type="email"
             placeholder="Email"
-            className="w-full px-4 py-3 rounded-xl border border-[#e8e1cf] focus:outline-none focus:ring-1 focus:ring-[#f0b00f] placeholder:text-[#9b844b]"
+            className="w-full px-4 py-3 rounded-xl border border-[#e8e1cf] focus:outline-none focus:ring-1 focus:ring-[#f0b00f] placeholder:text-[#9b844b] text-[#1c170d]"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -59,7 +59,7 @@ export default function LoginPage() {
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Password"
-              className="w-full px-4 py-3 rounded-xl border border-[#e8e1cf] focus:outline-none focus:ring-1 focus:ring-[#f0b00f] placeholder:text-[#9b844b]"
+              className="w-full px-4 py-3 rounded-xl border border-[#e8e1cf] focus:outline-none focus:ring-1 focus:ring-[#f0b00f] placeholder:text-[#9b844b] text-[#1c170d]"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -85,7 +85,7 @@ export default function LoginPage() {
             </label>
             <Link
               href="/forgot-password"
-              className="underline text-black hover:text-[#f0b00f]"
+              className="underline text-[#1c170d] hover:text-[#f0b00f]"
             >
               Forgot password?
             </Link>
@@ -107,7 +107,7 @@ export default function LoginPage() {
           Don&apos;t have an account?{" "}
           <Link
             href="/register"
-            className="underline text-black hover:text-[#f0b00f]"
+            className="underline text-[#1c170d] hover:text-[#f0b00f]"
           >
             Sign Up
           </Link>
