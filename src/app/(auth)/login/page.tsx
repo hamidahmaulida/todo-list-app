@@ -25,21 +25,15 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // simpan token sesuai Remember Me
-        if (rememberMe) {
-          localStorage.setItem("token", data.token);
-        } else {
-          sessionStorage.setItem("token", data.token);
-        }
+        if (rememberMe) localStorage.setItem("token", data.token);
+        else sessionStorage.setItem("token", data.token);
 
         setMessage("Login successful!");
         setEmail("");
         setPassword("");
-        router.push("/dashboard"); // redirect ke dashboard
-      } else {
-        setMessage(data.error || "Login failed");
-      }
-    } catch (err) {
+        router.push("/dashboard");
+      } else setMessage(data.error || "Login failed");
+    } catch {
       setMessage("Network error");
     }
   };
@@ -91,7 +85,7 @@ export default function LoginPage() {
             </label>
             <Link
               href="/forgot-password"
-              className="underline hover:text-[#f0b00f]"
+              className="underline text-black hover:text-[#f0b00f]"
             >
               Forgot password?
             </Link>
@@ -111,7 +105,10 @@ export default function LoginPage() {
 
         <p className="text-center text-sm text-[#9b844b] mt-4">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="underline hover:text-[#f0b00f]">
+          <Link
+            href="/register"
+            className="underline text-black hover:text-[#f0b00f]"
+          >
             Sign Up
           </Link>
         </p>

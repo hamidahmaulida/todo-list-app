@@ -25,11 +25,9 @@ export default function RegisterPage() {
         setMessage("Account created! Please login.");
         setEmail("");
         setPassword("");
-      } else {
-        setMessage(data.error || "Registration failed");
-      }
+      } else setMessage(data.error || "Registration failed");
     } catch (err) {
-      console.error(err); // biar ga unused
+      console.error(err);
       setMessage("Network error");
     }
   };
@@ -83,7 +81,10 @@ export default function RegisterPage() {
 
         <p className="text-center text-sm text-[#9b844b] mt-4">
           Already have an account?{" "}
-          <Link href="/login" className="underline hover:text-[#f0b00f]">
+          <Link
+            href="/login"
+            className="underline text-black hover:text-[#f0b00f]"
+          >
             Sign In
           </Link>
         </p>
