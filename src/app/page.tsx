@@ -20,7 +20,7 @@ export default function Home() {
             Organize your work and life effortlessly.
           </h1>
           <h2 className="text-white text-sm font-normal md:text-base">
-            Become focused, organized, and calm with Taskify. The world's #1 task management app.
+            Become focused, organized, and calm with Taskify. The world&apos;s #1 task management app.
           </h2>
         </div>
 

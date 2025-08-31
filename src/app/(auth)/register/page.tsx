@@ -1,7 +1,6 @@
 "use client";
 import React, { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
 
 export default function RegisterPage() {
@@ -9,30 +8,31 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
-  
-const handleRegister = async (e: React.FormEvent) => {
-  e.preventDefault();
 
-  try {
-    const res = await fetch("/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-    const data = await res.json();
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (res.ok) {
-      setMessage("Account created! Please login."); // <-- sukses
-      setEmail(""); // <-- reset form
-      setPassword("");
-    } else {
-      setMessage(data.error || "Registration failed"); // <-- error dari backend
+      const data = await res.json();
+
+      if (res.ok) {
+        setMessage("Account created! Please login.");
+        setEmail("");
+        setPassword("");
+      } else {
+        setMessage(data.error || "Registration failed");
+      }
+    } catch (err) {
+      console.error(err); // biar ga unused
+      setMessage("Network error");
     }
-  } catch (err) {
-    setMessage("Network error"); // <-- kalau gagal koneksi
-  }
-};
+  };
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#fcfbf8] px-4">
@@ -75,9 +75,10 @@ const handleRegister = async (e: React.FormEvent) => {
           >
             Sign Up
           </button>
+
           {message && (
-          <p className="mt-2 text-center text-sm text-red-500">{message}</p>
-        )}
+            <p className="mt-2 text-center text-sm text-red-500">{message}</p>
+          )}
         </form>
 
         <p className="text-center text-sm text-[#9b844b] mt-4">
@@ -89,10 +90,4 @@ const handleRegister = async (e: React.FormEvent) => {
       </div>
     </main>
   );
-}
-
-import { NextResponse } from "next/server";
-
-export async function POST() {
-  return NextResponse.json({ message: "OK" });
 }
