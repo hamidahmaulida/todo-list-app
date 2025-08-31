@@ -89,7 +89,10 @@ export default function LoginPage() {
               />
               Remember me
             </label>
-            <Link href="/forgot-password" className="underline hover:text-[#f0b00f]">
+            <Link
+              href="/forgot-password"
+              className="underline hover:text-[#f0b00f]"
+            >
               Forgot password?
             </Link>
           </div>
@@ -107,7 +110,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-sm text-[#9b844b] mt-4">
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
           <Link href="/register" className="underline hover:text-[#f0b00f]">
             Sign Up
           </Link>
