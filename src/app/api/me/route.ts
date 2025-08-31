@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+
+// Inisialisasi Supabase
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,21 +18,25 @@ export async function GET(req: NextRequest) {
     if (!token)
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
+    // Verifikasi JWT
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as {
       userId: string;
       email: string;
     };
 
-    const user = await prisma.users.findUnique({
-      where: { user_id: payload.userId },
-      select: { email: true },
-    });
+    // Ambil data user dari Supabase
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", payload.userId)
+      .single();
 
-    if (!user)
+    if (error || !user)
       return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     return NextResponse.json(user);
   } catch (err) {
+    console.error("Me API error:", err);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }
