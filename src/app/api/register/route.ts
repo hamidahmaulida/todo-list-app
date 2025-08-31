@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcrypt";
 
-// Inisialisasi Supabase
+// Gunakan SERVICE_ROLE_KEY, bukan ANON_KEY
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: NextRequest) {
@@ -21,14 +21,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cek apakah email sudah terdaftar
+    // Cek apakah email sudah ada
     const { data: existingUser, error: fetchError } = await supabase
       .from("users")
       .select("id")
       .eq("email", email)
       .single();
 
-    if (fetchError === null && existingUser) {
+    if (!fetchError && existingUser) {
       return NextResponse.json(
         { error: "Email already registered" },
         { status: 400 }
@@ -38,14 +38,14 @@ export async function POST(req: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Buat user baru
-    const { data: user, error } = await supabase
+    // Insert user baru
+    const { data, error: insertError } = await supabase
       .from("users")
       .insert([{ email, password_hash: hashedPassword }])
-      .select()
-      .single();
+      .select();
 
-    if (error || !user) {
+    if (insertError || !data || data.length === 0) {
+      console.error("Supabase insert error:", insertError);
       return NextResponse.json(
         { error: "Failed to create user" },
         { status: 500 }
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       message: "User created successfully",
-      userId: user.id,
+      userId: data[0].id,
     });
   } catch (err) {
     console.error("Register error:", err);
