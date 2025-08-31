@@ -11,14 +11,13 @@ export default function Navbar() {
       </Link>
 
       {/* Menu + CTA */}
-      <div className="flex items-center space-x-6">
-        <ul className="flex items-center space-x-6">
+      <div className="flex items-center space-x-4 md:space-x-6">
+        <ul className="hidden md:flex items-center space-x-6">
           <li>
             <a href="#" className="text-gray-700 hover:text-green-800">
               Features
             </a>
           </li>
-          
           <li>
             <a href="#" className="text-gray-700 hover:text-green-800">
               Support
@@ -28,13 +27,13 @@ export default function Navbar() {
 
         {/* Tombol CTA */}
         <Link href="/register">
-          <button className="bg-[#0F766E] text-white px-4 py-2 rounded-lg hover:bg-[#0D5F57]">
+          <button className="bg-green-800 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
             Sign Up
           </button>
         </Link>
 
         <Link href="/login">
-          <button className="border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-100">
+          <button className="border border-green-800 text-green-800 px-4 py-2 rounded-lg hover:bg-green-100 transition">
             Sign In
           </button>
         </Link>
