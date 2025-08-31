@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
 
-// Inisialisasi Supabase
+// Pakai SERVICE_ROLE_KEY untuk bypass RLS
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function GET(req: NextRequest) {
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     const { data: user, error } = await supabase
       .from("users")
       .select("email")
-      .eq("id", payload.userId)
+      .eq("user_id", payload.userId) // sesuaikan dengan kolom Supabase
       .single();
 
     if (error || !user)

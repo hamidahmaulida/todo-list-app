@@ -3,15 +3,22 @@ import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
-// Inisialisasi Supabase
+// Pakai SERVICE_ROLE_KEY, bukan ANON_KEY
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json();
+
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: "Email and password are required" },
+        { status: 400 }
+      );
+    }
 
     // Cari user di Supabase
     const { data: user, error } = await supabase
@@ -32,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     // Buat token JWT
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      { userId: user.user_id, email: user.email },
       process.env.JWT_SECRET!,
       { expiresIn: "7d" }
     );

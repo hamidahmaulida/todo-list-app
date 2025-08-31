@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcrypt";
 
-// Gunakan SERVICE_ROLE_KEY, bukan ANON_KEY
+// Gunakan SERVICE_ROLE_KEY supaya bisa bypass RLS
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     // Cek apakah email sudah ada
     const { data: existingUser, error: fetchError } = await supabase
       .from("users")
-      .select("id")
+      .select("user_id")
       .eq("email", email)
       .single();
 
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       message: "User created successfully",
-      userId: data[0].id,
+      userId: data[0].user_id, // sesuaikan dengan kolom Supabase
     });
   } catch (err) {
     console.error("Register error:", err);
