@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-export default function Navbar() {
+export default function NavbarPublic() {
   return (
     <nav className="w-full bg-white shadow-sm px-6 py-4 flex items-center justify-between">
       {/* Logo */}

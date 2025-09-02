@@ -1,7 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  // Hapus atau komentari baris output di bawah ini jika ada
-  // output = "./src/generated/prisma"
 }
 
 datasource db {
@@ -29,21 +27,36 @@ model todo_tags {
 }
 
 model todos {
-  todo_id    String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id    String      @db.Uuid
-  title      String?     @db.VarChar(100)
-  content    String?
-  created_at DateTime?   @default(now()) @db.Timestamp(6)
-  updated_at DateTime?   @default(now()) @db.Timestamp(6)
-  todo_tags  todo_tags[]
-  users      users       @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  todo_id      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String         @db.Uuid
+  title        String?        @db.VarChar(100)
+  content      String?
+  created_at   DateTime?      @default(now()) @db.Timestamp(6)
+  updated_at   DateTime?      @default(now()) @db.Timestamp(6)
+  todo_tags    todo_tags[]
+  users        users          @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  shared_notes shared_notes[]
 }
 
 model users {
-  user_id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email         String    @unique @db.VarChar(100)
-  password_hash String    @db.VarChar(255)
-  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  user_id       String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String         @unique @db.VarChar(100)
+  password_hash String         @db.VarChar(255)
+  created_at    DateTime?      @default(now()) @db.Timestamp(6)
   tags          tags[]
   todos         todos[]
+  shared_notes  shared_notes[] @relation("SharedToUser")
+}
+
+model shared_notes {
+  shared_id      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  todo_id        String   @db.Uuid
+  owner_id       String   @db.Uuid
+  shared_to      String   @db.Uuid
+  permission     String   @default("read")
+
+  todos          todos    @relation(fields: [todo_id], references: [todo_id], onDelete: Cascade)
+  shared_to_user users    @relation("SharedToUser", fields: [shared_to], references: [user_id], onDelete: Cascade)
+
+  @@unique([todo_id, shared_to])
 }
