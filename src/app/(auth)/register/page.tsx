@@ -8,27 +8,42 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
+  const [isError, setIsError] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setMessage("");
+    setIsError(false);
 
     try {
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password.trim(),
+        }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
         setMessage("Account created! Please login.");
+        setIsError(false);
         setEmail("");
         setPassword("");
-      } else setMessage(data.error || "Registration failed");
+      } else {
+        setMessage(data.error || "Registration failed");
+        setIsError(true);
+      }
     } catch (err) {
       console.error(err);
       setMessage("Network error");
+      setIsError(true);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -69,13 +84,22 @@ export default function RegisterPage() {
 
           <button
             type="submit"
-            className="w-full py-3 rounded-full bg-[#f0b00f] text-[#1c170d] font-bold hover:bg-[#ddb30a] transition"
+            disabled={loading}
+            className={`w-full py-3 rounded-full bg-[#f0b00f] text-[#1c170d] font-bold transition hover:bg-[#ddb30a] ${
+              loading ? "opacity-70 cursor-not-allowed" : ""
+            }`}
           >
-            Sign Up
+            {loading ? "Registering..." : "Sign Up"}
           </button>
 
           {message && (
-            <p className="mt-2 text-center text-sm text-red-500">{message}</p>
+            <p
+              className={`mt-2 text-center text-sm ${
+                isError ? "text-red-500" : "text-green-500"
+              }`}
+            >
+              {message}
+            </p>
           )}
         </form>
 
