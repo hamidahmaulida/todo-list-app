@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
+  const [status, setStatus] = useState<"success" | "error" | "">("");
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -29,12 +30,17 @@ export default function LoginPage() {
         else sessionStorage.setItem("token", data.token);
 
         setMessage("Login successful!");
+        setStatus("success");
         setEmail("");
         setPassword("");
         router.push("/dashboard");
-      } else setMessage(data.error || "Login failed");
+      } else {
+        setMessage(data.error || "Login failed");
+        setStatus("error");
+      }
     } catch {
       setMessage("Network error");
+      setStatus("error");
     }
   };
 
@@ -99,7 +105,13 @@ export default function LoginPage() {
           </button>
 
           {message && (
-            <p className="mt-2 text-center text-sm text-red-500">{message}</p>
+            <p
+              className={`mt-2 text-center text-sm ${
+                status === "success" ? "text-green-500" : "text-red-500"
+              }`}
+            >
+              {message}
+            </p>
           )}
         </form>
 
@@ -113,6 +125,6 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
-      </div>
+    </div>
   );
 }
