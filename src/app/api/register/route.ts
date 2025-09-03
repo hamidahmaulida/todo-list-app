@@ -3,17 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcrypt";
 
-// Gunakan SERVICE_ROLE_KEY untuk server-side (bypass RLS)
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,   // URL masih bisa public
-  process.env.SUPABASE_SERVICE_ROLE_KEY!   // server-only key
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json();
 
-    // Validasi input
     if (!email || !password) {
       return NextResponse.json(
         { error: "Email and password are required" },
@@ -21,12 +19,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Cek apakah email sudah ada
+    // Cek existing user
     const { data: existingUser, error: fetchError } = await supabase
       .from("users")
       .select("user_id")
       .eq("email", email)
-      .maybeSingle(); // lebih aman daripada .single()
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error("Supabase fetch error:", fetchError);
+      return NextResponse.json(
+        { error: "Database query failed" },
+        { status: 500 }
+      );
+    }
 
     if (existingUser) {
       return NextResponse.json(
@@ -35,16 +41,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user baru
     const { data, error: insertError } = await supabase
       .from("users")
       .insert([{ email, password_hash: hashedPassword }])
       .select();
 
-    if (insertError || !data || data.length === 0) {
+    if (insertError) {
       console.error("Supabase insert error:", insertError);
       return NextResponse.json(
         { error: "Failed to create user" },
@@ -54,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       message: "User created successfully",
-      userId: data[0].user_id,
+      userId: data?.[0]?.user_id,
     });
   } catch (err) {
     console.error("Register error:", err);

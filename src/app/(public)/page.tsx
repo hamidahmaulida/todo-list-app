@@ -2,11 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 
 export default function Home() {
-    // Server-side fetch
-  // const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}`/top/)
-
   return (
-    <main className="min-h-screen bg-[#fcfbf8] flex flex-col items-center justify-center px-4">
+    <main className="flex-1 bg-[#fcfbf8] flex flex-col items-center justify-center px-4">
       {/* Hero Section */}
       <section
         className="flex flex-col gap-6 items-center justify-center text-center bg-cover bg-center bg-no-repeat p-4 rounded-xl min-h-[480px]"
@@ -30,10 +27,10 @@ export default function Home() {
           </button>
         </Link>
       </section>
+
       <footer className="w-full py-6 text-center text-sm text-gray-600 mt-12">
         &copy; 2025 Taskly.
       </footer>
     </main>
   );
 }
-

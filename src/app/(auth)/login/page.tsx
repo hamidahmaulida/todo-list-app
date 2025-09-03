@@ -39,7 +39,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#fcfbf8] px-4">
+    <div className="flex justify-center items-center w-full">
       <div className="w-full max-w-md bg-white rounded-xl shadow-md p-8">
         <h2 className="text-xl font-semibold text-center text-[#1c170d] mb-4">
           Welcome Back
@@ -113,6 +113,6 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
-    </main>
+      </div>
   );
 }
