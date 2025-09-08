@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Task } from "@/types/task";
 import { FiPlus } from "react-icons/fi";
+import { Task } from "@/types/task";
 
 interface TaskFormProps {
   initialData?: Partial<Task>;
@@ -25,16 +25,13 @@ export default function TaskForm({
   const [tagInput, setTagInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // reset initialData hanya saat berbeda
   useEffect(() => {
     if ((initialData?.title ?? "") !== title) setTitle(initialData?.title ?? "");
     if ((initialData?.content ?? "") !== content) setContent(initialData?.content ?? "");
-    if (JSON.stringify(initialData?.tags ?? []) !== JSON.stringify(tags)) 
+    if (JSON.stringify(initialData?.tags ?? []) !== JSON.stringify(tags))
       setTags(initialData?.tags ?? []);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData]);
 
-  // update parent saat user input
   useEffect(() => {
     if (onCharChange) onCharChange(title.length + content.length);
     onChange?.({ title, content, tags });
@@ -58,18 +55,15 @@ export default function TaskForm({
 
   return (
     <div className="space-y-4">
-      {/* Title */}
       <input
         type="text"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         disabled={readOnly}
         placeholder="Task title"
-        className="w-full text-xl font-semibold border-b focus:outline-none 
-                   text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
+        className="w-full text-xl font-semibold border-b focus:outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
       />
 
-      {/* Tags */}
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
           {tags.map((tag) => (
@@ -102,8 +96,7 @@ export default function TaskForm({
               }}
               onFocus={() => setShowDropdown(true)}
               placeholder="Add a tag..."
-              className="w-full border rounded px-2 py-1 text-sm outline-none 
-                         text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
+              className="w-full border rounded px-2 py-1 text-sm outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
             />
 
             {showDropdown && (filteredTags.length > 0 || tagInput) && (
@@ -122,7 +115,7 @@ export default function TaskForm({
                     className="px-2 py-1 flex items-center gap-1 text-sm text-blue-600 cursor-pointer hover:bg-blue-50"
                     onClick={() => handleAddTag(tagInput)}
                   >
-                    <FiPlus /> Create "{tagInput}"
+                    <FiPlus /> Create &quot;{tagInput}&quot;
                   </div>
                 )}
               </div>
@@ -131,14 +124,12 @@ export default function TaskForm({
         )}
       </div>
 
-      {/* Content */}
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
         disabled={readOnly}
         placeholder="Write your task..."
-        className="w-full h-40 border p-2 rounded-md focus:outline-none 
-                   text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
+        className="w-full h-40 border p-2 rounded-md focus:outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
       />
     </div>
   );

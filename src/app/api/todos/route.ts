@@ -1,4 +1,4 @@
-import { NextResponse, NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
 
@@ -7,7 +7,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ==================== Types ====================
 interface Todo {
   todo_id: string;
   user_id: string;
@@ -34,6 +33,11 @@ interface SharedNote {
   shared_to: string;
 }
 
+interface TodoWithExtras extends Todo {
+  todo_tags?: { tags: Tag }[];
+  shared_notes?: SharedNote[];
+}
+
 // ==================== Helpers ====================
 function getUserIdFromToken(token: string) {
   try {
@@ -46,7 +50,7 @@ function getUserIdFromToken(token: string) {
   }
 }
 
-// ==================== GET Todos ====================
+// ==================== GET ====================
 export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -71,10 +75,10 @@ export async function GET(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const todosWithExtras = (todos as any[]).map(t => ({
+    const todosWithExtras = (todos as TodoWithExtras[]).map((t) => ({
       ...t,
-      tags: t.todo_tags?.map((tt: any) => tt.tags.tag_name) || [],
-      shared: (t.shared_notes?.length || 0) > 0,
+      tags: t.todo_tags?.map((tt) => tt.tags.tag_name) ?? [],
+      shared: (t.shared_notes?.length ?? 0) > 0,
     }));
 
     return NextResponse.json(todosWithExtras);
@@ -84,7 +88,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ==================== POST Todo ====================
+// ==================== POST ====================
 export async function POST(req: NextRequest) {
   try {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -96,7 +100,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const tags: string[] = body.tags || [];
 
-    // Insert todo
     const { data: newTodo, error: todoError } = await supabase
       .from("todos")
       .insert([{ title: body.title ?? null, content: body.content ?? null, user_id }])
@@ -104,7 +107,6 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (todoError) return NextResponse.json({ error: todoError.message }, { status: 500 });
-
     const todoCasted = newTodo as Todo;
 
     // Handle tags
@@ -114,12 +116,10 @@ export async function POST(req: NextRequest) {
         .select("*")
         .eq("user_id", user_id);
 
-      const newTags = tags.filter(tagName => !existingTags?.some(t => t.tag_name === tagName));
+      const newTags = tags.filter((t) => !existingTags?.some((et) => et.tag_name === t));
 
       if (newTags.length > 0) {
-        await supabase
-          .from("tags")
-          .insert(newTags.map(tagName => ({ user_id, tag_name: tagName })));
+        await supabase.from("tags").insert(newTags.map((tag) => ({ user_id, tag_name: tag })));
       }
 
       const { data: allTags } = await supabase
@@ -127,17 +127,15 @@ export async function POST(req: NextRequest) {
         .select("*")
         .eq("user_id", user_id);
 
-      const todoTags = tags
-        .map(tagName => {
-          const tag = allTags?.find(t => t.tag_name === tagName);
+      const todoTags: TodoTag[] = tags
+        .map((tagName) => {
+          const tag = allTags?.find((t) => t.tag_name === tagName);
           return tag ? { todo_id: todoCasted.todo_id, tag_id: tag.tag_id } : null;
         })
         .filter((x): x is TodoTag => x !== null);
 
       if (todoTags.length > 0) {
-        await supabase
-          .from("todo_tags")
-          .insert(todoTags);
+        await supabase.from("todo_tags").insert(todoTags);
       }
     }
 
