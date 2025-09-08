@@ -121,7 +121,7 @@ export default function TaskForm({
                     className="px-2 py-1 flex items-center gap-1 text-sm text-blue-600 cursor-pointer hover:bg-blue-50"
                     onClick={() => handleAddTag(tagInput)}
                   >
-                    <FiPlus /> Create "{tagInput}"
+                    <FiPlus /> Create &quot;{tagInput}&quot;
                   </div>
                 )}
               </div>

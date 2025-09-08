@@ -27,19 +27,20 @@ export async function PUT(req: NextRequest) {
     if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
     const body = await req.json();
-
-    const url = new URL(req.url);
-    const segments = url.pathname.split("/");
+    const segments = req.url.split("/");
     const todoId = segments[segments.length - 1];
 
+    // Ambil todo existing
     const { data: existing, error: fetchError } = await supabase
       .from("todos")
       .select("*")
       .eq("todo_id", todoId)
       .single();
 
-    if (fetchError || !existing) return NextResponse.json({ error: "Todo not found" }, { status: 404 });
-    if (existing.user_id !== user_id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (fetchError || !existing)
+      return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+    if (existing.user_id !== user_id)
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     // Update todo
     const { data: updated, error: updateError } = await supabase
@@ -63,7 +64,7 @@ export async function PUT(req: NextRequest) {
         .eq("user_id", user_id);
 
       for (const tagName of body.tags) {
-        if (!existingTags?.find(t => t.tag_name === tagName)) {
+        if (!existingTags?.find((t: any) => t.tag_name === tagName)) {
           await supabase.from("tags").insert({ user_id, tag_name: tagName });
         }
       }
@@ -76,14 +77,14 @@ export async function PUT(req: NextRequest) {
         .eq("user_id", user_id);
 
       for (const tagName of body.tags) {
-        const tag = allTags?.find(t => t.tag_name === tagName);
+        const tag = allTags?.find((t: any) => t.tag_name === tagName);
         if (tag) {
           await supabase.from("todo_tags").insert({ todo_id: todoId, tag_id: tag.tag_id });
         }
       }
     }
 
-    const { data: todo } = await supabase
+    const { data: todoWithTags } = await supabase
       .from("todos")
       .select(`
         *,
@@ -94,7 +95,11 @@ export async function PUT(req: NextRequest) {
       .eq("todo_id", todoId)
       .single();
 
-    todo.tags = todo.todo_tags?.map((t: any) => t.tags.tag_name) || [];
+    // Map tags ke array string
+    const todo = {
+      ...todoWithTags,
+      tags: todoWithTags?.todo_tags?.map((t: any) => t.tags.tag_name) || [],
+    };
 
     return NextResponse.json(todo);
   } catch (err) {
@@ -112,8 +117,7 @@ export async function DELETE(req: NextRequest) {
     const user_id = getUserIdFromToken(token);
     if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-    const url = new URL(req.url);
-    const segments = url.pathname.split("/");
+    const segments = req.url.split("/");
     const todoId = segments[segments.length - 1];
 
     const { data: existing } = await supabase
@@ -125,10 +129,10 @@ export async function DELETE(req: NextRequest) {
     if (!existing) return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     if (existing.user_id !== user_id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    // hapus relasi todo_tags dulu
+    // Hapus relasi todo_tags dulu
     await supabase.from("todo_tags").delete().eq("todo_id", todoId);
 
-    // hapus todo
+    // Hapus todo
     const { error } = await supabase.from("todos").delete().eq("todo_id", todoId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
