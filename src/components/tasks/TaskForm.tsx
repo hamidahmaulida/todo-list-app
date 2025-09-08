@@ -19,18 +19,18 @@ export default function TaskForm({
   onCharChange,
   readOnly = false,
 }: TaskFormProps) {
-  const [title, setTitle] = useState(initialData?.title || "");
-  const [content, setContent] = useState(initialData?.content || "");
-  const [tags, setTags] = useState<string[]>(initialData?.tags || []);
+  const [title, setTitle] = useState(initialData?.title ?? "");
+  const [content, setContent] = useState(initialData?.content ?? "");
+  const [tags, setTags] = useState<string[]>(initialData?.tags ?? []);
   const [tagInput, setTagInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
 
   // reset initialData hanya saat berbeda
   useEffect(() => {
-    if ((initialData?.title || "") !== title) setTitle(initialData?.title || "");
-    if ((initialData?.content || "") !== content) setContent(initialData?.content || "");
-    if (JSON.stringify(initialData?.tags || []) !== JSON.stringify(tags)) 
-      setTags(initialData?.tags || []);
+    if ((initialData?.title ?? "") !== title) setTitle(initialData?.title ?? "");
+    if ((initialData?.content ?? "") !== content) setContent(initialData?.content ?? "");
+    if (JSON.stringify(initialData?.tags ?? []) !== JSON.stringify(tags)) 
+      setTags(initialData?.tags ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData]);
 
@@ -41,8 +41,9 @@ export default function TaskForm({
   }, [title, content, tags, onChange, onCharChange]);
 
   const handleAddTag = (tag: string) => {
-    if (!tag.trim()) return;
-    if (!tags.includes(tag)) setTags([...tags, tag]);
+    const trimmed = tag.trim();
+    if (!trimmed) return;
+    if (!tags.includes(trimmed)) setTags([...tags, trimmed]);
     setTagInput("");
     setShowDropdown(false);
   };
@@ -51,7 +52,7 @@ export default function TaskForm({
     setTags(tags.filter((t) => t !== tag));
   };
 
-  const filteredTags = existingTags.filter(
+  const filteredTags: string[] = existingTags.filter(
     (t) => t.toLowerCase().includes(tagInput.toLowerCase()) && !tags.includes(t)
   );
 
@@ -107,7 +108,7 @@ export default function TaskForm({
 
             {showDropdown && (filteredTags.length > 0 || tagInput) && (
               <div className="absolute mt-1 w-full bg-white border rounded shadow max-h-40 overflow-y-auto z-50">
-                {filteredTags.map((tag) => (
+                {filteredTags.map((tag: string) => (
                   <div
                     key={tag}
                     className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-sm text-gray-900"
@@ -121,7 +122,7 @@ export default function TaskForm({
                     className="px-2 py-1 flex items-center gap-1 text-sm text-blue-600 cursor-pointer hover:bg-blue-50"
                     onClick={() => handleAddTag(tagInput)}
                   >
-                    <FiPlus /> Create &quot;{tagInput}&quot;
+                    <FiPlus /> Create "{tagInput}"
                   </div>
                 )}
               </div>

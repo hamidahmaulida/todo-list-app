@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { FiX, FiTrash2, FiShare2, FiMaximize2, FiMinimize2 } from "react-icons/fi";
 import { Task } from "@/types/task";
 import { formatDate } from "@/lib/formatDate";
@@ -36,9 +36,7 @@ export default function TaskModal({
   useEffect(() => setLocalTags(existingTags), [existingTags]);
   useEffect(() => {
     setTaskData(initialData || {});
-    setTotalChar(
-      (initialData?.title?.length || 0) + (initialData?.content?.length || 0)
-    );
+    setTotalChar((initialData?.title?.length || 0) + (initialData?.content?.length || 0));
   }, [initialData]);
 
   if (!isOpen) return null;
@@ -47,6 +45,7 @@ export default function TaskModal({
 
   async function handleSave(task: Partial<Task>) {
     if (readOnly) return;
+
     try {
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
       if (!token) return alert("You are not logged in!");
@@ -68,9 +67,11 @@ export default function TaskModal({
       });
 
       const data: Task | { error: string } = await res.json();
+
       if (!res.ok || "error" in data) {
-        console.error("Failed to save task:", data);
-        return alert(`Failed to save task: ${(data as any).error || "Unknown error"}`);
+        const errMsg = "error" in data ? data.error : "Unknown error";
+        console.error("Failed to save task:", errMsg);
+        return alert(`Failed to save task: ${errMsg}`);
       }
 
       if (task.tags) {
@@ -89,8 +90,7 @@ export default function TaskModal({
   }
 
   async function handleDelete() {
-    if (readOnly) return;
-    if (!initialData?.todo_id) return;
+    if (readOnly || !initialData?.todo_id) return;
     if (!confirm("Are you sure you want to delete this task?")) return;
 
     try {
@@ -102,10 +102,12 @@ export default function TaskModal({
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
+
+      const data: { error?: string } = await res.json();
       if (!res.ok || data.error) {
-        console.error("Failed to delete task:", data);
-        return alert(`Failed to delete task: ${data.error || "Unknown error"}`);
+        const errMsg = data.error || "Unknown error";
+        console.error("Failed to delete task:", errMsg);
+        return alert(`Failed to delete task: ${errMsg}`);
       }
 
       onTaskDeleted?.(initialData.todo_id);

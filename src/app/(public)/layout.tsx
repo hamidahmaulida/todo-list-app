@@ -1,4 +1,5 @@
 // app/(public)/layout.tsx
+"use client"; 
 import NavbarPublic from "@/components/navbars/NavbarPublic";
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
