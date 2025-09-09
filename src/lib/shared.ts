@@ -25,6 +25,23 @@ export interface SharedTask {
   task: Task;
 }
 
+// tipe khusus untuk hasil query Supabase
+interface SupabaseTaskRow {
+  todo_id: string;
+  title: string | null;
+  content: string | null;
+  created_at: string;
+  updated_at: string;
+  users: { email: string } | null;
+}
+
+interface SupabaseSharedRow {
+  shared_id: string;
+  permission: "read" | "edit";
+  created_at: string;
+  todos: SupabaseTaskRow;
+}
+
 export async function getSharedTask(sharedId: string): Promise<SharedTask | null> {
   try {
     const { data, error } = await supabase
@@ -43,7 +60,7 @@ export async function getSharedTask(sharedId: string): Promise<SharedTask | null
         )
       `)
       .eq("shared_id", sharedId)
-      .single();
+      .single<SupabaseSharedRow>();
 
     if (error) {
       console.error("Error fetching shared task:", error);
@@ -52,7 +69,7 @@ export async function getSharedTask(sharedId: string): Promise<SharedTask | null
 
     if (!data?.todos) return null;
 
-    const taskRow = data.todos as any;
+    const taskRow: SupabaseTaskRow = data.todos;
 
     return {
       shared_id: data.shared_id,
@@ -64,7 +81,7 @@ export async function getSharedTask(sharedId: string): Promise<SharedTask | null
         content: taskRow.content,
         created_at: taskRow.created_at,
         updated_at: taskRow.updated_at,
-        user: taskRow.users || null,
+        user: taskRow.users ? { email: taskRow.users.email } : null,
       },
     };
   } catch (err) {
