@@ -16,7 +16,6 @@ interface TaskModalProps {
   readOnly?: boolean;
 }
 
-// Type for API response
 type SaveTaskResponse = TodoWithExtras | { error: string };
 
 export default function TaskModal({
@@ -35,22 +34,16 @@ export default function TaskModal({
   const [localTags, setLocalTags] = useState<string[]>(existingTags);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
-  // Sync localTags ketika existingTags berubah
-  useEffect(() => {
-    setLocalTags(existingTags);
-  }, [existingTags]);
-
-  // Sync taskData dan totalChar ketika initialData berubah
+  useEffect(() => setLocalTags(existingTags), [existingTags]);
   useEffect(() => {
     setTaskData(initialData || {});
-    setTotalChar(
-      (initialData?.title?.length ?? 0) + (initialData?.content?.length ?? 0)
-    );
+    setTotalChar((initialData?.title?.length ?? 0) + (initialData?.content?.length ?? 0));
+    setShareUrl(null);
   }, [initialData?.title, initialData?.content, initialData?.tags]);
 
   if (!isOpen) return null;
-
   const formattedDateTime = formatDate(initialData?.updated_at || initialData?.created_at);
 
   async function handleSave(task: Partial<TodoWithExtras>) {
@@ -69,27 +62,29 @@ export default function TaskModal({
 
       const res = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
 
       const data: SaveTaskResponse = await res.json();
-
       if (!res.ok || "error" in data) {
         const errMsg = "error" in data ? data.error : "Unknown error";
         console.error("Failed to save task:", errMsg);
         return alert(`Failed to save task: ${errMsg}`);
       }
 
-      if (task.tags) {
-        const newUniqueTags = Array.from(new Set([...localTags, ...task.tags]));
-        setLocalTags(newUniqueTags);
-      }
-
+      if (task.tags) setLocalTags(Array.from(new Set([...localTags, ...task.tags])));
       onTaskSaved?.(data as TodoWithExtras);
+
+      // Create share link automatically
+      const shareRes = await fetch("/api/shared", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ todo_id: (data as TodoWithExtras).todo_id, access_type: "public" }),
+      });
+      const shareData = await shareRes.json();
+      if (shareRes.ok && shareData.share_url) setShareUrl(shareData.share_url);
+
       onClose();
     } catch (err) {
       console.error("Error saving task:", err);
@@ -114,12 +109,7 @@ export default function TaskModal({
       });
 
       const data: { error?: string } = await res.json();
-      if (!res.ok || data.error) {
-        const errMsg = data.error || "Unknown error";
-        console.error("Failed to delete task:", errMsg);
-        return alert(`Failed to delete task: ${errMsg}`);
-      }
-
+      if (!res.ok || data.error) return alert(`Failed to delete task: ${data.error || "Unknown error"}`);
       onTaskDeleted?.(initialData.todo_id);
       onClose();
     } catch (err) {
@@ -131,13 +121,11 @@ export default function TaskModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className={`bg-white w-full max-w-[500px] max-h-[90vh] flex flex-col relative transition-all duration-300 rounded shadow-lg
-          ${isFullscreen ? "w-full max-w-full h-full max-h-full p-8" : "p-4"}`}
+        className={`bg-white w-full max-w-[500px] max-h-[90vh] flex flex-col relative transition-all duration-300 rounded shadow-lg ${
+          isFullscreen ? "w-full max-w-full h-full max-h-full p-8" : "p-4"
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -146,19 +134,10 @@ export default function TaskModal({
             {initialData ? (readOnly ? "Shared Task" : "Edit Task") : "Create Task"}
           </h2>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowShare(!showShare)}
-              className="flex items-center gap-1 p-1 rounded hover:bg-gray-100 text-gray-600"
-            >
+            <button type="button" onClick={() => setShowShare(!showShare)} className="flex items-center gap-1 p-1 rounded hover:bg-gray-100 text-gray-600">
               <FiShare2 className="w-5 h-5" />
             </button>
-            <button
-              type="button"
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-600"
-              title={isFullscreen ? "Exit Fullscreen" : "Expand Fullscreen"}
-            >
+            <button type="button" onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 rounded hover:bg-gray-100 text-gray-600" title={isFullscreen ? "Exit Fullscreen" : "Expand Fullscreen"}>
               {isFullscreen ? <FiMinimize2 className="w-5 h-5" /> : <FiMaximize2 className="w-5 h-5" />}
             </button>
             <button type="button" onClick={onClose} className="p-1 rounded hover:bg-gray-100 text-gray-600">
@@ -168,37 +147,27 @@ export default function TaskModal({
         </div>
 
         {/* Share Dropdown */}
-        {showShare && initialData?.todo_id && (
+        {showShare && shareUrl && (
           <div className="absolute top-12 right-4 bg-white shadow rounded p-4 w-80 z-20 flex flex-col gap-3 border">
-            <input type="email" placeholder="Enter email to invite" className="border p-2 rounded w-full text-gray-900" />
-            <select className="border p-2 rounded w-full text-gray-900">
-              <option>Can view</option>
-              <option>Can edit</option>
-              <option>Can comment</option>
-            </select>
-            <input type="date" className="border p-2 rounded w-full text-gray-900" />
-            <button className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Remove access</button>
-            <button
-              className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
-              onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/shared/${initialData.todo_id}`);
-                alert("Link copied!");
-              }}
-            >
-              Copy link
-            </button>
+            <span className="text-gray-700">Shareable link:</span>
+            <div className="flex items-center gap-2">
+              <input type="text" value={shareUrl} readOnly className="flex-1 border p-2 rounded text-gray-900" />
+              <button
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+                onClick={() => {
+                  navigator.clipboard.writeText(shareUrl);
+                  alert("Link copied!");
+                }}
+              >
+                Copy
+              </button>
+            </div>
           </div>
         )}
 
         {/* Form */}
         <div className="flex-1 overflow-y-auto mt-2">
-          <TaskForm
-            initialData={taskData}
-            existingTags={localTags}
-            onChange={setTaskData}
-            onCharChange={setTotalChar}
-            readOnly={readOnly}
-          />
+          <TaskForm initialData={taskData} existingTags={localTags} onChange={setTaskData} onCharChange={setTotalChar} readOnly={readOnly} />
         </div>
 
         {/* Footer */}
@@ -208,22 +177,12 @@ export default function TaskModal({
           </span>
           <div className="flex gap-2">
             {!readOnly && initialData?.todo_id && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-              >
+              <button type="button" onClick={handleDelete} disabled={deleting} className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
                 <FiTrash2 /> Delete
               </button>
             )}
             {!readOnly && (
-              <button
-                type="button"
-                onClick={() => handleSave(taskData)}
-                disabled={saving}
-                className="px-4 py-2 bg-[#0F766E] text-white rounded hover:bg-[#115E59] disabled:opacity-50"
-              >
+              <button type="button" onClick={() => handleSave(taskData)} disabled={saving} className="px-4 py-2 bg-[#0F766E] text-white rounded hover:bg-[#115E59] disabled:opacity-50">
                 {saving ? "Saving..." : "Save"}
               </button>
             )}

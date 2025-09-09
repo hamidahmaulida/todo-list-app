@@ -1,4 +1,3 @@
-// src/app/api/shared/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
@@ -10,26 +9,18 @@ const supabase = createClient(
 
 function getUserIdFromToken(token: string) {
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    return payload.userId;
+    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { user_id: string };
+    return payload.user_id;
   } catch {
     return null;
   }
 }
 
-/**
- * GET shared note by ID
- * - public → bisa tanpa login
- * - invited → wajib login dan cocok user_id
- */
-export async function GET(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+// GET /api/shared/[id]
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await context.params;
+    const { id } = params;
 
-    // Step 1: Get shared note data
     const { data: sharedNote, error: sharedError } = await supabase
       .from("shared_notes")
       .select(`
@@ -44,43 +35,24 @@ export async function GET(
       .eq("shared_id", id)
       .single();
 
-    if (sharedError || !sharedNote) {
-      console.error("Shared note not found:", sharedError);
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    if (sharedError || !sharedNote) return NextResponse.json({ error: "Shared note not found" }, { status: 404 });
 
-    // Step 2: Get todo data
     const { data: todo, error: todoError } = await supabase
       .from("todos")
-      .select(`
-        todo_id,
-        title,
-        content,
-        created_at,
-        updated_at,
-        user_id
-      `)
+      .select("todo_id, title, content, created_at, updated_at, user_id")
       .eq("todo_id", sharedNote.todo_id)
       .single();
 
-    if (todoError || !todo) {
-      console.error("Todo not found:", todoError);
-      return NextResponse.json({ error: "Todo not found" }, { status: 404 });
-    }
+    if (todoError || !todo) return NextResponse.json({ error: "Todo not found" }, { status: 404 });
 
-    // Step 3: Get owner data
     const { data: owner, error: ownerError } = await supabase
       .from("users")
       .select("user_id, email")
       .eq("user_id", sharedNote.owner_id)
       .single();
 
-    if (ownerError || !owner) {
-      console.error("Owner not found:", ownerError);
-      return NextResponse.json({ error: "Owner not found" }, { status: 404 });
-    }
+    if (ownerError || !owner) return NextResponse.json({ error: "Owner not found" }, { status: 404 });
 
-    // Prepare response data
     const responseData = {
       shared_id: sharedNote.shared_id,
       access_type: sharedNote.access_type,
@@ -95,44 +67,27 @@ export async function GET(
       }
     };
 
-    // Check access permissions
-    if (sharedNote.access_type === "public") {
-      return NextResponse.json(responseData);
-    }
+    if (sharedNote.access_type === "public") return NextResponse.json(responseData);
 
-    // For invited access, check authentication
+    // Invited access → wajib login dan user_id cocok
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const user_id = getUserIdFromToken(token);
-    if (!user_id) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    if (sharedNote.shared_to !== user_id) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
+    if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    if (sharedNote.shared_to !== user_id) return NextResponse.json({ error: "Access denied" }, { status: 403 });
 
     return NextResponse.json(responseData);
-
   } catch (err) {
     console.error("GET /shared/[id] error:", err);
     return NextResponse.json({ error: "Failed to fetch shared note" }, { status: 500 });
   }
 }
 
-/**
- * PUT update shared note
- */
-export async function PUT(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+// PUT /api/shared/[id]
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await context.params;
-
+    const { id } = params;
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -150,27 +105,19 @@ export async function PUT(
       .select()
       .single();
 
-    if (error || !data) {
-      return NextResponse.json({ error: error?.message || "Failed to update" }, { status: 400 });
-    }
+    if (error || !data) return NextResponse.json({ error: error?.message || "Failed to update" }, { status: 400 });
 
     return NextResponse.json(data);
   } catch (err) {
-    console.error("PUT /shared error:", err);
+    console.error("PUT /shared/[id] error:", err);
     return NextResponse.json({ error: "Failed to update shared note" }, { status: 500 });
   }
 }
 
-/**
- * DELETE shared note
- */
-export async function DELETE(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+// DELETE /api/shared/[id]
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = await context.params;
-
+    const { id } = params;
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -183,13 +130,11 @@ export async function DELETE(
       .eq("shared_id", id)
       .eq("owner_id", user_id);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ message: "Successfully unshared", shared_id: id });
   } catch (err) {
-    console.error("DELETE /shared error:", err);
+    console.error("DELETE /shared/[id] error:", err);
     return NextResponse.json({ error: "Failed to delete shared note" }, { status: 500 });
   }
 }
