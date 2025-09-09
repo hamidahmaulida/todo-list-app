@@ -49,13 +49,16 @@ model users {
 }
 
 model shared_notes {
-  shared_id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  todo_id        String @db.Uuid
-  owner_id       String @db.Uuid
-  shared_to      String @db.Uuid
-  permission     String @default("read")
-  shared_to_user users  @relation("SharedToUser", fields: [shared_to], references: [user_id], onDelete: Cascade)
-  todos          todos  @relation(fields: [todo_id], references: [todo_id], onDelete: Cascade)
+  shared_id      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  todo_id        String   @db.Uuid
+  owner_id       String   @db.Uuid
+  shared_to      String?  @db.Uuid
+  permission     String   @default("read")
+  access_type    String   @default("public") // "public" | "invited"
+
+  shared_to_user users?   @relation("SharedToUser", fields: [shared_to], references: [user_id], onDelete: Cascade)
+  todos          todos    @relation(fields: [todo_id], references: [todo_id], onDelete: Cascade)
 
   @@unique([todo_id, shared_to])
 }
+
