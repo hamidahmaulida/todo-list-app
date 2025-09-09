@@ -18,6 +18,18 @@ function getUserIdFromToken(token: string): string | null {
   }
 }
 
+// Supabase row type
+interface SupabaseTodoRow {
+  todo_id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user_id: string;
+  todo_tags?: { tags: { tag_name: string } }[];
+  shared_notes?: { shared_id: string; owner_id: string; shared_to: string | null; permission: string }[];
+}
+
 export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -31,7 +43,7 @@ export async function GET(req: NextRequest) {
       .select(`
         *,
         todo_tags (
-          tags(tag_id, tag_name)
+          tags(tag_name)
         ),
         shared_notes (
           shared_id, owner_id, shared_to, permission
@@ -42,9 +54,10 @@ export async function GET(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const todosWithExtras: TodoWithExtras[] = todos.map((t: any) => ({
+    // Map ke TodoWithExtras
+    const todosWithExtras: TodoWithExtras[] = (todos as SupabaseTodoRow[]).map((t) => ({
       ...t,
-      tags: t.todo_tags?.map((tt: any) => tt.tags.tag_name) || [],
+      tags: t.todo_tags?.map((tt) => tt.tags.tag_name) || [],
       shared: (t.shared_notes?.length ?? 0) > 0,
     }));
 

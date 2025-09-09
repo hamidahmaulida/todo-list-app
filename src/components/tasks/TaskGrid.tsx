@@ -1,7 +1,6 @@
 "use client";
 // Fix import - ganti Task dengan TodoWithExtras
 import { TodoWithExtras } from "@/types/task";
-import { FiShare2 } from "react-icons/fi";
 import { formatDate } from "@/lib/formatDate";
 
 interface TaskGridProps {
