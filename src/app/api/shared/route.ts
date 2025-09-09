@@ -17,7 +17,7 @@ function getUserIdFromToken(token: string) {
   }
 }
 
-// POST: create share (default public)
+// ✅ POST share note (default public)
 export async function POST(req: NextRequest) {
   try {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -27,71 +27,46 @@ export async function POST(req: NextRequest) {
     if (!owner_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
     const body = await req.json();
-    const { todo_id, permission = "read", access_type = "public" } = body;
+    const { todo_id, permission = "read", access_type = "public", shared_to = null } = body;
 
     if (!todo_id) {
       return NextResponse.json({ error: "Missing todo_id" }, { status: 400 });
     }
 
     // cek todo milik owner
-    const { data: todo } = await supabase
+    const { data: todo, error: fetchError } = await supabase
       .from("todos")
       .select("todo_id")
       .eq("todo_id", todo_id)
       .eq("user_id", owner_id)
       .single();
 
-    if (!todo) {
+    if (fetchError || !todo) {
       return NextResponse.json({ error: "Todo not found or access denied" }, { status: 404 });
     }
 
     // insert share
     const { data, error } = await supabase
       .from("shared_notes")
-      .insert([{ todo_id, owner_id, permission, access_type }])
+      .insert([{ 
+        todo_id, 
+        owner_id, 
+        permission,
+        access_type,
+        shared_to
+      }])
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error || !data) {
+      return NextResponse.json({ error: error?.message || "Failed to create share" }, { status: 500 });
+    }
 
     const shareUrl = `${req.nextUrl.origin}/shared/${data.shared_id}`;
     return NextResponse.json({ ...data, share_url: shareUrl }, { status: 201 });
+
   } catch (err) {
     console.error("POST /shared error:", err);
     return NextResponse.json({ error: "Failed to share note" }, { status: 500 });
-  }
-}
-
-// GET: list all shares (punya user login)
-export async function GET(req: NextRequest) {
-  try {
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const user_id = getUserIdFromToken(token);
-    if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-
-    const { data, error } = await supabase
-      .from("shared_notes")
-      .select(`
-        shared_id,
-        access_type,
-        permission,
-        todos (
-          todo_id,
-          title,
-          content,
-          updated_at,
-          users (email)
-        )
-      `)
-      .eq("owner_id", user_id);
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    return NextResponse.json(data);
-  } catch (err) {
-    console.error("GET /shared error:", err);
-    return NextResponse.json({ error: "Failed to fetch shares" }, { status: 500 });
   }
 }
