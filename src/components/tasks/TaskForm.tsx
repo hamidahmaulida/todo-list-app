@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect, useRef } from "react";
 import { FiPlus } from "react-icons/fi";
 import { TodoWithExtras } from "@/types/task";
@@ -39,17 +38,17 @@ export default function TaskForm({
 
   const handleAddTag = (tag: string) => {
     const trimmed = tag.trim();
-    if (!trimmed) return; // input kosong -> jangan tutup dropdown
+    if (!trimmed) return;
     if (!tags.includes(trimmed)) {
       setTags([...tags, trimmed]);
-      setShowDropdown(false); // baru tutup kalau tag berhasil ditambahkan
+      setShowDropdown(false);
     }
     setTagInput("");
   };
 
   const handleRemoveTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
 
-  const filteredTags = existingTags.filter(
+  const filteredTags: string[] = existingTags.filter(
     (t) => t.toLowerCase().includes(tagInput.toLowerCase()) && !tags.includes(t)
   );
 
@@ -113,7 +112,7 @@ export default function TaskForm({
                 ))}
                 {tagInput && (
                   <div className="px-2 py-1 flex items-center gap-1 text-sm text-blue-600 cursor-pointer hover:bg-blue-50" onClick={() => handleAddTag(tagInput)}>
-                    <FiPlus /> Create "{tagInput}"
+                    <FiPlus /> Create &quot;{tagInput}&quot;
                   </div>
                 )}
               </div>

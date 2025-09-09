@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { FiX, FiTrash2, FiMaximize2, FiMinimize2 } from "react-icons/fi";
 import { TodoWithExtras } from "@/types/task";
 import { formatDate } from "@/lib/formatDate";
@@ -145,9 +145,7 @@ export default function TaskModal({
           </h2>
           <div className="flex items-center gap-2">
             {/* Share Button */}
-            {taskData.todo_id && !readOnly && (
-              <ShareButton todo_id={taskData.todo_id} />
-            )}
+            {taskData.todo_id && !readOnly && <ShareButton todo_id={taskData.todo_id} />}
 
             <button
               type="button"
