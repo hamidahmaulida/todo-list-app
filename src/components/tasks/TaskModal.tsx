@@ -34,16 +34,17 @@ export default function TaskModal({
   const [localTags, setLocalTags] = useState<string[]>(existingTags);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showShare, setShowShare] = useState(false);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
 
   useEffect(() => setLocalTags(existingTags), [existingTags]);
   useEffect(() => {
     setTaskData(initialData || {});
-    setTotalChar((initialData?.title?.length ?? 0) + (initialData?.content?.length ?? 0));
-    setShareUrl(null);
+    setTotalChar(
+      (initialData?.title?.length ?? 0) + (initialData?.content?.length ?? 0)
+    );
   }, [initialData?.title, initialData?.content, initialData?.tags]);
 
   if (!isOpen) return null;
+
   const formattedDateTime = formatDate(initialData?.updated_at || initialData?.created_at);
 
   async function handleSave(task: Partial<TodoWithExtras>) {
@@ -74,24 +75,13 @@ export default function TaskModal({
       }
 
       if (task.tags) setLocalTags(Array.from(new Set([...localTags, ...task.tags])));
+      setTaskData(data as TodoWithExtras);
       onTaskSaved?.(data as TodoWithExtras);
-
-      // Create share link automatically
-      const shareRes = await fetch("/api/shared", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ todo_id: (data as TodoWithExtras).todo_id, access_type: "public" }),
-      });
-      const shareData = await shareRes.json();
-      if (shareRes.ok && shareData.share_url) setShareUrl(shareData.share_url);
-
-      onClose();
+      return data as TodoWithExtras;
     } catch (err) {
       console.error("Error saving task:", err);
       alert("Error saving task. Check console for details.");
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
 
   async function handleDelete() {
@@ -107,27 +97,57 @@ export default function TaskModal({
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const data: { error?: string } = await res.json();
-      if (!res.ok || data.error) return alert(`Failed to delete task: ${data.error || "Unknown error"}`);
+      if (!res.ok || data.error) {
+        const errMsg = data.error || "Unknown error";
+        console.error("Failed to delete task:", errMsg);
+        return alert(`Failed to delete task: ${errMsg}`);
+      }
+
       onTaskDeleted?.(initialData.todo_id);
       onClose();
     } catch (err) {
       console.error("Error deleting task:", err);
       alert("Error deleting task. Check console for details.");
-    } finally {
-      setDeleting(false);
-    }
+    } finally { setDeleting(false); }
   }
+
+      async function handleShare() {
+      if (!taskData.todo_id || !taskData.user_id) {
+        alert("Cannot share: task not saved or owner missing.");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/shared", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            todo_id: taskData.todo_id,
+            access_type: "public",
+            permission: "read",
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.shared_id) {
+          console.error("Failed to share task:", data.error);
+          return alert(`Failed to share task: ${data.error || "Unknown error"}`);
+        }
+
+        await navigator.clipboard.writeText(data.share_url);
+        alert("Link copied! Share this with others.");
+      } catch (err) {
+        console.error("Error sharing task:", err);
+        alert("Error sharing task. Check console for details.");
+      }
+    }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        className={`bg-white w-full max-w-[500px] max-h-[90vh] flex flex-col relative transition-all duration-300 rounded shadow-lg ${
-          isFullscreen ? "w-full max-w-full h-full max-h-full p-8" : "p-4"
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className={`bg-white w-full max-w-[500px] max-h-[90vh] flex flex-col relative transition-all duration-300 rounded shadow-lg
+          ${isFullscreen ? "w-full max-w-full h-full max-h-full p-8" : "p-4"}`} onClick={(e) => e.stopPropagation()}>
+
         {/* Header */}
         <div className="flex justify-between items-center border-b pb-2">
           <h2 className="text-xl font-semibold text-[#0F766E]">
@@ -137,7 +157,8 @@ export default function TaskModal({
             <button type="button" onClick={() => setShowShare(!showShare)} className="flex items-center gap-1 p-1 rounded hover:bg-gray-100 text-gray-600">
               <FiShare2 className="w-5 h-5" />
             </button>
-            <button type="button" onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 rounded hover:bg-gray-100 text-gray-600" title={isFullscreen ? "Exit Fullscreen" : "Expand Fullscreen"}>
+            <button type="button" onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 rounded hover:bg-gray-100 text-gray-600"
+              title={isFullscreen ? "Exit Fullscreen" : "Expand Fullscreen"}>
               {isFullscreen ? <FiMinimize2 className="w-5 h-5" /> : <FiMaximize2 className="w-5 h-5" />}
             </button>
             <button type="button" onClick={onClose} className="p-1 rounded hover:bg-gray-100 text-gray-600">
@@ -147,36 +168,38 @@ export default function TaskModal({
         </div>
 
         {/* Share Dropdown */}
-        {showShare && shareUrl && (
+        {showShare && (
           <div className="absolute top-12 right-4 bg-white shadow rounded p-4 w-80 z-20 flex flex-col gap-3 border">
-            <span className="text-gray-700">Shareable link:</span>
-            <div className="flex items-center gap-2">
-              <input type="text" value={shareUrl} readOnly className="flex-1 border p-2 rounded text-gray-900" />
-              <button
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
-                onClick={() => {
-                  navigator.clipboard.writeText(shareUrl);
-                  alert("Link copied!");
-                }}
-              >
-                Copy
-              </button>
-            </div>
+            <input type="email" placeholder="Enter email to invite" className="border p-2 rounded w-full text-gray-900" />
+            <select className="border p-2 rounded w-full text-gray-900">
+              <option>Can view</option>
+              <option>Can edit</option>
+              <option>Can comment</option>
+            </select>
+            <input type="date" className="border p-2 rounded w-full text-gray-900" />
+            <button className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Remove access</button>
+            <button className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300" onClick={handleShare}>
+              Copy link
+            </button>
           </div>
         )}
 
         {/* Form */}
         <div className="flex-1 overflow-y-auto mt-2">
-          <TaskForm initialData={taskData} existingTags={localTags} onChange={setTaskData} onCharChange={setTotalChar} readOnly={readOnly} />
+          <TaskForm
+            initialData={taskData}
+            existingTags={localTags}
+            onChange={setTaskData}
+            onCharChange={setTotalChar}
+            readOnly={readOnly}
+          />
         </div>
 
         {/* Footer */}
         <div className="flex justify-between items-center p-4 border-t sticky bottom-0 bg-white">
-          <span className="text-sm text-gray-500">
-            {totalChar} characters • {formattedDateTime}
-          </span>
+          <span className="text-sm text-gray-500">{totalChar} characters • {formattedDateTime}</span>
           <div className="flex gap-2">
-            {!readOnly && initialData?.todo_id && (
+            {!readOnly && taskData.todo_id && (
               <button type="button" onClick={handleDelete} disabled={deleting} className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
                 <FiTrash2 /> Delete
               </button>
@@ -188,6 +211,7 @@ export default function TaskModal({
             )}
           </div>
         </div>
+
       </div>
     </div>
   );

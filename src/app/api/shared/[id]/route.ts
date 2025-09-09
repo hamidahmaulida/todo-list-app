@@ -7,7 +7,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function getUserIdFromToken(token: string) {
+// ✅ Fungsi untuk ambil user_id dari token
+function getUserIdFromToken(token: string): string | null {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { user_id: string };
     return payload.user_id;
@@ -16,8 +17,11 @@ function getUserIdFromToken(token: string) {
   }
 }
 
-// GET /api/shared/[id]
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+// ------------------- GET /api/shared/[id] -------------------
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const { id } = params;
 
@@ -35,7 +39,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .eq("shared_id", id)
       .single();
 
-    if (sharedError || !sharedNote) return NextResponse.json({ error: "Shared note not found" }, { status: 404 });
+    if (sharedError || !sharedNote)
+      return NextResponse.json({ error: "Shared note not found" }, { status: 404 });
 
     const { data: todo, error: todoError } = await supabase
       .from("todos")
@@ -43,7 +48,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .eq("todo_id", sharedNote.todo_id)
       .single();
 
-    if (todoError || !todo) return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+    if (todoError || !todo)
+      return NextResponse.json({ error: "Todo not found" }, { status: 404 });
 
     const { data: owner, error: ownerError } = await supabase
       .from("users")
@@ -51,7 +57,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .eq("user_id", sharedNote.owner_id)
       .single();
 
-    if (ownerError || !owner) return NextResponse.json({ error: "Owner not found" }, { status: 404 });
+    if (ownerError || !owner)
+      return NextResponse.json({ error: "Owner not found" }, { status: 404 });
 
     const responseData = {
       shared_id: sharedNote.shared_id,
@@ -63,8 +70,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         content: todo.content,
         created_at: todo.created_at,
         updated_at: todo.updated_at,
-        user: owner
-      }
+        user: owner,
+      },
     };
 
     if (sharedNote.access_type === "public") return NextResponse.json(responseData);
@@ -75,7 +82,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     const user_id = getUserIdFromToken(token);
     if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    if (sharedNote.shared_to !== user_id) return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    if (sharedNote.shared_to !== user_id)
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
 
     return NextResponse.json(responseData);
   } catch (err) {
@@ -84,8 +92,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-// PUT /api/shared/[id]
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+// ------------------- PUT /api/shared/[id] -------------------
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const { id } = params;
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -105,7 +116,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       .select()
       .single();
 
-    if (error || !data) return NextResponse.json({ error: error?.message || "Failed to update" }, { status: 400 });
+    if (error || !data)
+      return NextResponse.json({ error: error?.message || "Failed to update" }, { status: 400 });
 
     return NextResponse.json(data);
   } catch (err) {
@@ -114,8 +126,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-// DELETE /api/shared/[id]
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+// ------------------- DELETE /api/shared/[id] -------------------
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const { id } = params;
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -138,3 +153,4 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: "Failed to delete shared note" }, { status: 500 });
   }
 }
+

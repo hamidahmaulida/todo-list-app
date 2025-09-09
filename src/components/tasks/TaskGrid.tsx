@@ -41,22 +41,6 @@ export default function TaskGrid({ tasks, onSelect }: TaskGridProps) {
             onClick={() => onSelect(task)}
             className="relative bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-xl hover:scale-105 transform transition-all flex flex-col"
           >
-            {task.shared && (
-              <div
-                className="absolute top-2 right-2 flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-0.5 rounded cursor-pointer hover:bg-blue-200"
-                title="Shared note - click to copy link"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigator.clipboard.writeText(
-                    `${window.location.origin}/shared/${task.todo_id}`
-                  );
-                  alert("Link copied to clipboard!");
-                }}
-              >
-                <FiShare2 className="w-4 h-4" />
-                <span className="text-xs font-medium">Shared</span>
-              </div>
-            )}
 
             <h3 className="font-bold text-lg mb-1 text-gray-900 truncate">
               {displayTitle}

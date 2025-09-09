@@ -1,61 +1,56 @@
-// src/app/api/shared/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
+import { TodoWithExtras } from "@/types/task";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function getUserIdFromToken(token: string) {
+function getUserIdFromToken(token: string): string | null {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
     return payload.userId;
-  } catch {
+  } catch (err) {
+    console.error("Invalid token:", err);
     return null;
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const owner_id = getUserIdFromToken(token);
-    if (!owner_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    const userId = getUserIdFromToken(token);
+    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-    const body = await req.json();
-    const { todo_id, permission = "read", access_type = "public", shared_to = null } = body;
-
-    if (!todo_id) return NextResponse.json({ error: "Missing todo_id" }, { status: 400 });
-
-    // cek todo milik owner
-    const { data: todo, error: fetchError } = await supabase
+    const { data: todos, error } = await supabase
       .from("todos")
-      .select("todo_id")
-      .eq("todo_id", todo_id)
-      .eq("user_id", owner_id)
-      .single();
+      .select(`
+        *,
+        todo_tags (
+          tags(tag_id, tag_name)
+        ),
+        shared_notes (
+          shared_id, owner_id, shared_to, permission
+        )
+      `)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
 
-    if (fetchError || !todo)
-      return NextResponse.json({ error: "Todo not found or access denied" }, { status: 404 });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // insert share
-    const { data, error } = await supabase
-      .from("shared_notes")
-      .insert([{ todo_id, owner_id, permission, access_type, shared_to }])
-      .select()
-      .single();
+    const todosWithExtras: TodoWithExtras[] = todos.map((t: any) => ({
+      ...t,
+      tags: t.todo_tags?.map((tt: any) => tt.tags.tag_name) || [],
+      shared: (t.shared_notes?.length ?? 0) > 0,
+    }));
 
-    if (error || !data)
-      return NextResponse.json({ error: error?.message || "Failed to create share" }, { status: 500 });
-
-    const shareUrl = `${req.nextUrl.origin}/shared/${data.shared_id}`;
-    return NextResponse.json({ ...data, share_url: shareUrl }, { status: 201 });
-
+    return NextResponse.json(todosWithExtras);
   } catch (err) {
-    console.error("POST /shared error:", err);
-    return NextResponse.json({ error: "Failed to share note" }, { status: 500 });
+    console.error("GET /todos error:", err);
+    return NextResponse.json({ error: "Failed to fetch todos" }, { status: 500 });
   }
 }
