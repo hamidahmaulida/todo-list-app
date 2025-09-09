@@ -1,4 +1,5 @@
 // src/types/task.ts
+
 // === Core Types ===
 export interface Todo {
   todo_id: string;
@@ -22,16 +23,16 @@ export interface TodoTag {
 
 export interface SharedNote {
   shared_id: string;
-  todo_id: string;
+  todo_id: string;               // <--- pastikan ada todo_id
   owner_id: string;
-  shared_to: string | null; // bisa null untuk public shares
+  shared_to: string | null;      // null = public share
   permission: "read" | "edit";
-  access_type: "public" | "invited"; // tambahan ini penting
+  access_type: "public" | "invited"; // wajib ada supaya sesuai supabase
 }
 
 // === Extended Types ===
 export interface TodoWithExtras extends Todo {
-  todo_tags?: { tags: Tag }[];
+  todo_tags?: { tags: Partial<Tag> }[]; // Partial supaya TS ga error jika ada properti hilang
   shared_notes?: SharedNote[];
   tags?: string[];
   shared?: boolean;
@@ -39,7 +40,7 @@ export interface TodoWithExtras extends Todo {
 
 // === Supabase Query Types ===
 export interface SupabaseUser {
-  user_id: string; // tambah user_id untuk konsistensi
+  user_id: string;
   email: string;
 }
 
@@ -55,12 +56,12 @@ export interface SupabaseTaskRow {
 export interface SupabaseSharedRow {
   shared_id: string;
   permission: "read" | "edit";
-  access_type: "public" | "invited"; // tambahan ini
+  access_type: "public" | "invited";
   created_at: string;
   todos: SupabaseTaskRow;
 }
 
-// === For UI consumption ===
+// === UI Consumption ===
 export interface Task {
   todo_id: string;
   title: string | null;
@@ -73,7 +74,7 @@ export interface Task {
 export interface SharedTask {
   shared_id: string;
   permission: "read" | "edit";
-  access_type: "public" | "invited"; // tambahan ini penting untuk logic
+  access_type: "public" | "invited";
   created_at: string;
   task: Task;
 }
