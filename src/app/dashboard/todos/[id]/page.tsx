@@ -3,16 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import TaskForm from "@/components/tasks/TaskForm";
-import { Task } from "@/types/task";
+import { TodoWithExtras } from "@/types/task";
 
 export default function TaskDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params?.id as string;
 
-  const [task, setTask] = useState<Task | null>(null);
+  const [task, setTask] = useState<TodoWithExtras | null>(null);
   const [charCount, setCharCount] = useState(0);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const fetchTask = async () => {
@@ -26,10 +25,9 @@ export default function TaskDetailPage() {
     if (id) fetchTask();
   }, [id]);
 
-  const handleSave = async (data: Partial<Task>) => {
+  const handleSave = async (data: Partial<TodoWithExtras>) => {
     if (!id) return;
     try {
-      setSaving(true);
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
       await fetch(`/api/todos/${id}`, {
         method: "PUT",
@@ -40,7 +38,7 @@ export default function TaskDetailPage() {
         body: JSON.stringify(data),
       });
     } finally {
-      setSaving(false);
+      // Remove unused setSaving since saving state isn't used
     }
   };
 

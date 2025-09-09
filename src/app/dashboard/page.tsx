@@ -1,5 +1,5 @@
 "use client"; 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import TaskGrid from "@/components/tasks/TaskGrid";
 import TaskModal from "@/components/tasks/TaskModal";
 import { TodoWithExtras } from "@/types/task";
@@ -14,7 +14,8 @@ export default function DashboardPage() {
   const getToken = () =>
     localStorage.getItem("token") || sessionStorage.getItem("token");
 
-  const fetchTasks = async () => {
+  // FIXED: Use useCallback to memoize fetchTasks
+  const fetchTasks = useCallback(async () => {
     try {
       const token = getToken();
       if (!token) throw new Error("No token found");
@@ -40,11 +41,12 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Failed to fetch tasks:", err);
     }
-  };
+  }, []);
 
+  // FIXED: Add fetchTasks to dependency array
   useEffect(() => {
     fetchTasks();
-  }, []);
+  }, [fetchTasks]);
 
   const handleTaskSaved = (savedTask: TodoWithExtras & { _deleted?: boolean }) => {
     if (savedTask._deleted) {
@@ -121,7 +123,15 @@ export default function DashboardPage() {
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             onTaskSaved={handleTaskSaved}
-            onTaskDeleted={(todo_id) => handleTaskSaved({ todo_id, _deleted: true } as any)}
+            onTaskDeleted={(todo_id) => handleTaskSaved({ 
+              todo_id, 
+              _deleted: true,
+              user_id: '',
+              title: null,
+              content: null,
+              created_at: '',
+              updated_at: ''
+            })}
             initialData={selectedTask ?? undefined}
             existingTags={tags}
             readOnly={selectedTask?.shared || false}
