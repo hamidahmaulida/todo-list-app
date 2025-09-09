@@ -68,40 +68,34 @@ export default function NavbarDashboard({ user, onToggleSidebar }: NavbarDashboa
           </div>
         </button>
 
-        {/* Dropdown - Fixed positioning untuk mobile */}
+        {/* Dropdown */}
         {dropdownOpen && (
-          <>
-            {/* Overlay untuk mobile */}
-            <div className="fixed inset-0 bg-black bg-opacity-25 z-40 md:hidden" onClick={() => setDropdownOpen(false)} />
-            
-            <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 
-                          md:w-56 max-w-[calc(100vw-2rem)] mr-0 md:mr-0">
-              {/* User info header - cuma email sekali aja */}
-              <div className="px-4 py-3 border-b border-gray-100">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Signed in as</p>
-                <p className="text-sm font-medium text-gray-900 truncate mt-1">{user.email}</p>
-              </div>
-              
-              {/* Menu items */}
-              <div className="py-1">
-                <button
-                  onClick={handleSettings}
-                  className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150"
-                >
-                  <FiSettings className="mr-3 h-4 w-4" />
-                  Settings
-                </button>
-                
-                <button
-                  onClick={handleSignOut}
-                  className="w-full flex items-center px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors duration-150"
-                >
-                  <FiLogOut className="mr-3 h-4 w-4" />
-                  Sign Out
-                </button>
-              </div>
+          <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50 md:w-56 max-w-[calc(100vw-2rem)]">
+            {/* User info header */}
+            <div className="px-4 py-3 border-b border-gray-100">
+              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Signed in as</p>
+              <p className="text-sm font-medium text-gray-900 truncate mt-1">{user.email}</p>
             </div>
-          </>
+            
+            {/* Menu items */}
+            <div className="py-1">
+              <button
+                onClick={handleSettings}
+                className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150"
+              >
+                <FiSettings className="mr-3 h-4 w-4" />
+                Settings
+              </button>
+              
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors duration-150"
+              >
+                <FiLogOut className="mr-3 h-4 w-4" />
+                Sign Out
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </nav>
