@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 
-interface SharedNote {
+// Tipe response dari API
+interface SharedNoteResponse {
   shared_id: string;
-  permission: string;
   access_type: "public" | "invited";
+  permission: string;
   task: {
     todo_id: string;
     title?: string;
@@ -17,64 +18,65 @@ interface SharedNote {
   };
 }
 
-export default function SharedNotesGrid() {
-  const [notes, setNotes] = useState<SharedNote[]>([]);
-  const router = useRouter();
-
-  const fetchSharedNotes = async () => {
-    try {
-      const token =
-        localStorage.getItem("token") || sessionStorage.getItem("token");
-      if (!token) return;
-
-      const res = await fetch("/api/shared", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) {
-        console.error("Failed to fetch shared notes");
-        return;
-      }
-
-      const data: SharedNote[] = await res.json();
-      setNotes(data);
-    } catch (err) {
-      console.error("Fetch shared notes error:", err);
-    }
-  };
+export default function SharedNotePage() {
+  const { id } = useParams(); // Ambil id dari route
+  const [note, setNote] = useState<SharedNoteResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchSharedNotes();
-  }, []);
+    if (!id) return;
 
-  const handleClick = (id: string) => {
-    router.push(`/shared/${id}`);
-  };
+    const fetchSharedNote = async () => {
+      setLoading(true);
+      try {
+        const token =
+          localStorage.getItem("token") || sessionStorage.getItem("token");
+
+        const res = await fetch(`/api/shared/${id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          setError(errData.error || "Failed to fetch shared note");
+          setLoading(false);
+          return;
+        }
+
+        const data: SharedNoteResponse = await res.json();
+        setNote(data);
+      } catch (err) {
+        console.error("Fetch shared note error:", err);
+        setError("Failed to fetch shared note");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSharedNote();
+  }, [id]);
+
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p className="text-red-600">{error}</p>;
+  if (!note) return <p>Note not found.</p>;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {notes.map((note) => (
-        <div
-          key={note.shared_id}
-          className="bg-white p-4 rounded shadow cursor-pointer hover:bg-gray-50"
-          onClick={() => handleClick(note.shared_id)}
-        >
-          <h3 className="font-bold text-lg mb-1 truncate">
-            {note.task.title || "Untitled"}
-          </h3>
-          {note.task.content && (
-            <p className="text-sm text-gray-700 line-clamp-3">
-              {note.task.content}
-            </p>
-          )}
-          <span className="text-xs text-gray-500 mt-2 block">
-            By: {note.task.user.email} •{" "}
-            {new Date(
-              note.task.updated_at || note.task.created_at || ""
-            ).toLocaleString("id-ID")}
-          </span>
-        </div>
-      ))}
+    <div className="max-w-xl mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-2">{note.task.title || "Untitled"}</h1>
+      {note.task.content && <p className="mb-4">{note.task.content}</p>}
+      <p className="text-sm text-gray-500 mb-1">
+        By: {note.task.user.email}
+      </p>
+      <p className="text-sm text-gray-500">
+        Updated:{" "}
+        {new Date(note.task.updated_at || note.task.created_at || "").toLocaleString(
+          "id-ID"
+        )}
+      </p>
+      <p className="mt-2 text-xs text-gray-400">
+        Permission: {note.permission} • Access: {note.access_type}
+      </p>
     </div>
   );
 }
