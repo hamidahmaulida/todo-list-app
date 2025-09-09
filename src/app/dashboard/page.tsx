@@ -143,7 +143,7 @@ export default function DashboardPage() {
             onClose={() => setIsModalOpen(false)}
             onTaskSaved={handleTaskSaved}
             onTaskDeleted={(todo_id) =>
-              handleTaskSaved({ todo_id, _deleted: true } as any)
+              handleTaskSaved({ todo_id, _deleted: true } as TodoWithExtras & { _deleted: boolean })
             }
             initialData={selectedTask ?? undefined}
             existingTags={tags}
