@@ -1,11 +1,13 @@
 "use client";
-import { Task } from "@/types/task";
+// Fix import - ganti Task dengan TodoWithExtras
+import { TodoWithExtras } from "@/types/task";
 import { FiShare2 } from "react-icons/fi";
 import { formatDate } from "@/lib/formatDate";
 
 interface TaskGridProps {
-  tasks: Task[];
-  onSelect: (task: Task) => void;
+  // Ganti Task dengan TodoWithExtras
+  tasks: TodoWithExtras[];
+  onSelect: (task: TodoWithExtras) => void;
 }
 
 export default function TaskGrid({ tasks, onSelect }: TaskGridProps) {
