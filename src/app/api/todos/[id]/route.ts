@@ -3,11 +3,13 @@ import { createClient, PostgrestSingleResponse } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
 import { Todo, Tag, TodoWithExtras, SharedNote } from "@/types/task";
 
+// Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Fungsi bantu verifikasi token
 function getUserIdFromToken(token: string): string | null {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
@@ -18,10 +20,42 @@ function getUserIdFromToken(token: string): string | null {
   }
 }
 
-interface SupabaseTodoTagRow {
-  tags: Tag;
+// DELETE TODO
+export async function DELETE(req: NextRequest) {
+  try {
+    const todoId = req.url.split("/").pop();
+    if (!todoId) return NextResponse.json({ error: "Invalid todo ID" }, { status: 400 });
+
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const userId = getUserIdFromToken(token);
+    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+
+    const { data: existing, error: fetchError } = await supabase
+      .from("todos")
+      .select("user_id")
+      .eq("todo_id", todoId)
+      .single();
+
+    if (fetchError || !existing) return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+    if (existing.user_id !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    const { error: deleteError } = await supabase
+      .from("todos")
+      .delete()
+      .eq("todo_id", todoId);
+
+    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
+
+    return NextResponse.json({ message: "Todo deleted", todo_id: todoId });
+  } catch (err) {
+    console.error("DELETE /todos/[id] error:", err);
+    return NextResponse.json({ error: "Failed to delete todo" }, { status: 500 });
+  }
 }
 
+// PUT / UPDATE TODO
 export async function PUT(req: NextRequest) {
   try {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -34,7 +68,6 @@ export async function PUT(req: NextRequest) {
     const todoId = req.url.split("/").pop();
     if (!todoId) return NextResponse.json({ error: "Invalid todo ID" }, { status: 400 });
 
-    // Ambil todo existing
     const { data: existing, error: fetchError }: PostgrestSingleResponse<Todo> = await supabase
       .from("todos")
       .select("*")
@@ -57,27 +90,37 @@ export async function PUT(req: NextRequest) {
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
 
     // Handle tags
-    if (Array.isArray(body.tags) && body.tags.length) {
-      const { data: existingTagsData } = await supabase.from("tags").select("*").eq("user_id", user_id);
+    if (Array.isArray(body.tags)) {
+      const { data: existingTagsData } = await supabase
+        .from("tags")
+        .select("*")
+        .eq("user_id", user_id);
       const existingTags: Tag[] = existingTagsData || [];
 
-      for (const tagName of body.tags as string[]) {
-        if (!existingTags.find(t => t.tag_name === tagName)) {
-          await supabase.from("tags").insert([{ user_id, tag_name: tagName }]);
-        }
-      }
+      // Insert tags baru jika belum ada
+      const newTags = body.tags
+        .filter((t: string) => !existingTags.some(et => et.tag_name === t))
+        .map((t: string) => ({ user_id, tag_name: t }));
 
+      if (newTags.length) await supabase.from("tags").insert(newTags);
+
+      // Delete old todo_tags
       await supabase.from("todo_tags").delete().eq("todo_id", todoId);
 
-      const { data: allTagsData } = await supabase.from("tags").select("*").eq("user_id", user_id);
+      // Ambil semua tag terbaru
+      const { data: allTagsData } = await supabase
+        .from("tags")
+        .select("*")
+        .eq("user_id", user_id);
       const allTags: Tag[] = allTagsData || [];
 
-      const todoTagsToInsert = (body.tags as string[])
-        .map((tagName: string) => {
-          const tag = allTags.find(t => t.tag_name === tagName);
+      // Explicit typing supaya TS7006 hilang
+      const todoTagsToInsert: { todo_id: string; tag_id: string }[] = body.tags
+        .map((tagName: string): { todo_id: string; tag_id: string } | null => {
+          const tag = allTags.find(at => at.tag_name === tagName);
           return tag ? { todo_id: todoId, tag_id: tag.tag_id } : null;
         })
-        .filter((x): x is { todo_id: string; tag_id: string } => x !== null);
+        .filter((item: { todo_id: string; tag_id: string } | null): item is { todo_id: string; tag_id: string } => item !== null);
 
       if (todoTagsToInsert.length) {
         await supabase.from("todo_tags").insert(todoTagsToInsert);
@@ -92,7 +135,7 @@ export async function PUT(req: NextRequest) {
       created_at: string;
       updated_at: string;
       user_id: string;
-      todo_tags?: SupabaseTodoTagRow[];
+      todo_tags?: { tags: Tag }[];
       shared_notes?: SharedNote[];
     }> = await supabase
       .from("todos")
@@ -108,13 +151,12 @@ export async function PUT(req: NextRequest) {
       .eq("todo_id", todoId)
       .single();
 
-    if (!todoWithExtrasData) return NextResponse.json({ error: "Todo not found after update" }, { status: 404 });
+    if (!todoWithExtrasData)
+      return NextResponse.json({ error: "Todo not found after update" }, { status: 404 });
 
     const todoResponse: TodoWithExtras = {
       ...todoWithExtrasData,
-      tags: todoWithExtrasData.todo_tags
-        ?.map((t: SupabaseTodoTagRow) => t.tags.tag_name)
-        .filter((tn): tn is string => !!tn) || [],
+      tags: todoWithExtrasData.todo_tags?.map(t => t.tags.tag_name) || [],
       shared: (todoWithExtrasData.shared_notes?.length ?? 0) > 0,
     };
 

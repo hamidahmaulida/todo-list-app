@@ -1,5 +1,5 @@
-"use client"; 
-import { useState, useEffect, useCallback } from "react";
+"use client";
+import { useState, useEffect } from "react";
 import TaskGrid from "@/components/tasks/TaskGrid";
 import TaskModal from "@/components/tasks/TaskModal";
 import { TodoWithExtras } from "@/types/task";
@@ -11,11 +11,27 @@ export default function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
 
+  // Ambil token dari localStorage / sessionStorage
   const getToken = () =>
     localStorage.getItem("token") || sessionStorage.getItem("token");
 
-  // FIXED: Use useCallback to memoize fetchTasks
-  const fetchTasks = useCallback(async () => {
+  // Ambil current userId dari JWT
+  const getCurrentUserId = () => {
+    const token = getToken();
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return payload.userId;
+    } catch (err) {
+      console.error("Failed to parse token:", err);
+      return null;
+    }
+  };
+
+  const currentUserId = getCurrentUserId();
+
+  // Fetch tasks dari API
+  const fetchTasks = async () => {
     try {
       const token = getToken();
       if (!token) throw new Error("No token found");
@@ -41,12 +57,11 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Failed to fetch tasks:", err);
     }
-  }, []);
+  };
 
-  // FIXED: Add fetchTasks to dependency array
   useEffect(() => {
     fetchTasks();
-  }, [fetchTasks]);
+  }, []);
 
   const handleTaskSaved = (savedTask: TodoWithExtras & { _deleted?: boolean }) => {
     if (savedTask._deleted) {
@@ -83,38 +98,37 @@ export default function DashboardPage() {
         </div>
 
         {tags.length > 0 && (
-        <div className="flex gap-2 flex-wrap mb-4">
-          <button
-            onClick={() => setFilterTag(null)}
-            className={`px-3 py-1 rounded-full text-sm border ${
-              filterTag === null
-                ? "bg-[#0F766E] text-white"
-                : "bg-gray-100 text-gray-700"
-            }`}
-          >
-            All
-          </button>
-          {tags.map((tag) => (
+          <div className="flex gap-2 flex-wrap mb-4">
+            {/* All Tag */}
             <button
-              key={tag}
-              onClick={() => setFilterTag(tag)}
+              onClick={() => setFilterTag(null)}
               className={`px-3 py-1 rounded-full text-sm border ${
-                filterTag === tag
-                  ? "bg-[#0F766E] text-white"
-                  : "bg-gray-100 text-gray-700"
+                filterTag === null
+                  ? "bg-[#0F766E] text-white border-[#0F766E]"
+                  : "bg-[#D1FAE5] text-[#0F766E] border-[#0F766E]"
               }`}
             >
-              {tag}
+              All
             </button>
-          ))}
-        </div>
-      )}
 
+            {/* Other Tags */}
+            {tags.map((tag) => (
+              <button
+                key={tag}
+                onClick={() => setFilterTag(tag)}
+                className={`px-3 py-1 rounded-full text-sm border ${
+                  filterTag === tag
+                    ? "bg-[#0F766E] text-white border-[#0F766E]"
+                    : "bg-[#D1FAE5] text-[#0F766E] border-[#0F766E]"
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
 
-        <TaskGrid
-          tasks={filteredTasks}
-          onSelect={openTaskModal}
-        />
+        <TaskGrid tasks={filteredTasks} onSelect={openTaskModal} />
 
         <button
           onClick={() => openTaskModal()}
@@ -128,18 +142,16 @@ export default function DashboardPage() {
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             onTaskSaved={handleTaskSaved}
-            onTaskDeleted={(todo_id) => handleTaskSaved({ 
-              todo_id, 
-              _deleted: true,
-              user_id: '',
-              title: null,
-              content: null,
-              created_at: '',
-              updated_at: ''
-            })}
+            onTaskDeleted={(todo_id) =>
+              handleTaskSaved({ todo_id, _deleted: true } as any)
+            }
             initialData={selectedTask ?? undefined}
             existingTags={tags}
-            readOnly={selectedTask?.shared || false}
+            readOnly={
+              selectedTask
+                ? selectedTask.user_id !== currentUserId
+                : false
+            }
           />
         )}
       </div>

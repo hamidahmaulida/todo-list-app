@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { FiX, FiTrash2, FiShare2, FiMaximize2, FiMinimize2 } from "react-icons/fi";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { FiX, FiTrash2, FiMaximize2, FiMinimize2 } from "react-icons/fi";
 import { TodoWithExtras } from "@/types/task";
 import { formatDate } from "@/lib/formatDate";
 import TaskForm from "./TaskForm";
+import ShareButton from "@/components/shared/ShareButton";
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -30,18 +31,31 @@ export default function TaskModal({
   const [totalChar, setTotalChar] = useState(0);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [taskData, setTaskData] = useState<Partial<TodoWithExtras>>(initialData || {});
-  const [localTags, setLocalTags] = useState<string[]>(existingTags);
+  const [taskData, setTaskData] = useState<Partial<TodoWithExtras>>({});
+  const [localTags, setLocalTags] = useState<string[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showShare, setShowShare] = useState(false);
+
+  const memoizedInitialData = useMemo(() => initialData || {}, [initialData]);
 
   useEffect(() => setLocalTags(existingTags), [existingTags]);
+
   useEffect(() => {
-    setTaskData(initialData || {});
-    setTotalChar(
-      (initialData?.title?.length ?? 0) + (initialData?.content?.length ?? 0)
-    );
-  }, [initialData?.title, initialData?.content, initialData?.tags]);
+    if (isOpen) {
+      setTaskData(memoizedInitialData);
+      setTotalChar(
+        (memoizedInitialData?.title?.length ?? 0) +
+        (memoizedInitialData?.content?.length ?? 0)
+      );
+    }
+  }, [isOpen, memoizedInitialData]);
+
+  const handleTaskDataChange = useCallback((updated: Partial<TodoWithExtras>) => {
+    setTaskData(updated);
+  }, []);
+
+  const handleCharChange = useCallback((count: number) => {
+    setTotalChar(count);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -49,17 +63,23 @@ export default function TaskModal({
 
   async function handleSave(task: Partial<TodoWithExtras>) {
     if (readOnly) return;
+    const hasData = task.title?.trim() || task.content?.trim() || (task.tags && task.tags.length);
+    if (!hasData) return alert("Please fill at least one field: title, content, or tag");
 
     try {
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
       if (!token) return alert("You are not logged in!");
 
       setSaving(true);
-      const payload: Partial<TodoWithExtras> = { ...task };
+      const payload: Partial<TodoWithExtras> = {
+        title: task.title || "",
+        content: task.content || "",
+        tags: task.tags || [],
+      };
       if (initialData?.todo_id) payload.todo_id = initialData.todo_id;
 
-      const method = payload.todo_id ? "PUT" : "POST";
       const url = payload.todo_id ? `/api/todos/${payload.todo_id}` : "/api/todos";
+      const method = payload.todo_id ? "PUT" : "POST";
 
       const res = await fetch(url, {
         method,
@@ -69,19 +89,20 @@ export default function TaskModal({
 
       const data: SaveTaskResponse = await res.json();
       if (!res.ok || "error" in data) {
-        const errMsg = "error" in data ? data.error : "Unknown error";
-        console.error("Failed to save task:", errMsg);
-        return alert(`Failed to save task: ${errMsg}`);
+        return alert(`Failed to save task: ${"error" in data ? data.error : "Unknown error"}`);
       }
 
       if (task.tags) setLocalTags(Array.from(new Set([...localTags, ...task.tags])));
       setTaskData(data as TodoWithExtras);
       onTaskSaved?.(data as TodoWithExtras);
+      onClose();
       return data as TodoWithExtras;
     } catch (err) {
       console.error("Error saving task:", err);
       alert("Error saving task. Check console for details.");
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDelete() {
@@ -98,99 +119,58 @@ export default function TaskModal({
         headers: { Authorization: `Bearer ${token}` },
       });
       const data: { error?: string } = await res.json();
-      if (!res.ok || data.error) {
-        const errMsg = data.error || "Unknown error";
-        console.error("Failed to delete task:", errMsg);
-        return alert(`Failed to delete task: ${errMsg}`);
-      }
+      if (!res.ok || data.error) return alert(`Failed to delete task: ${data.error || "Unknown error"}`);
 
       onTaskDeleted?.(initialData.todo_id);
       onClose();
     } catch (err) {
       console.error("Error deleting task:", err);
       alert("Error deleting task. Check console for details.");
-    } finally { setDeleting(false); }
-  }
-
-      async function handleShare() {
-      if (!taskData.todo_id || !taskData.user_id) {
-        alert("Cannot share: task not saved or owner missing.");
-        return;
-      }
-
-      try {
-        const res = await fetch("/api/shared", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            todo_id: taskData.todo_id,
-            access_type: "public",
-            permission: "read",
-          }),
-        });
-
-        const data = await res.json();
-        if (!res.ok || !data.shared_id) {
-          console.error("Failed to share task:", data.error);
-          return alert(`Failed to share task: ${data.error || "Unknown error"}`);
-        }
-
-        await navigator.clipboard.writeText(data.share_url);
-        alert("Link copied! Share this with others.");
-      } catch (err) {
-        console.error("Error sharing task:", err);
-        alert("Error sharing task. Check console for details.");
-      }
+    } finally {
+      setDeleting(false);
     }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" onClick={onClose}>
-      <div className={`bg-white w-full max-w-[500px] max-h-[90vh] flex flex-col relative transition-all duration-300 rounded shadow-lg
-          ${isFullscreen ? "w-full max-w-full h-full max-h-full p-8" : "p-4"}`} onClick={(e) => e.stopPropagation()}>
-
+      <div
+        className={`bg-white w-full max-w-[500px] max-h-[90vh] flex flex-col relative transition-all duration-300 rounded shadow-lg
+          ${isFullscreen ? "w-full max-w-full h-full max-h-full p-8" : "p-4"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex justify-between items-center border-b pb-2">
+        <div className="flex justify-between items-center border-b pb-2 relative">
           <h2 className="text-xl font-semibold text-[#0F766E]">
             {initialData ? (readOnly ? "Shared Task" : "Edit Task") : "Create Task"}
           </h2>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setShowShare(!showShare)} className="flex items-center gap-1 p-1 rounded hover:bg-gray-100 text-gray-600">
-              <FiShare2 className="w-5 h-5" />
-            </button>
-            <button type="button" onClick={() => setIsFullscreen(!isFullscreen)} className="p-1 rounded hover:bg-gray-100 text-gray-600"
-              title={isFullscreen ? "Exit Fullscreen" : "Expand Fullscreen"}>
+            {/* Share Button */}
+            {taskData.todo_id && !readOnly && (
+              <ShareButton todo_id={taskData.todo_id} />
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-1 rounded hover:bg-gray-100 text-gray-600"
+              title={isFullscreen ? "Exit Fullscreen" : "Expand Fullscreen"}
+            >
               {isFullscreen ? <FiMinimize2 className="w-5 h-5" /> : <FiMaximize2 className="w-5 h-5" />}
             </button>
+
             <button type="button" onClick={onClose} className="p-1 rounded hover:bg-gray-100 text-gray-600">
               <FiX className="w-6 h-6" />
             </button>
           </div>
         </div>
 
-        {/* Share Dropdown */}
-        {showShare && (
-          <div className="absolute top-12 right-4 bg-white shadow rounded p-4 w-80 z-20 flex flex-col gap-3 border">
-            <input type="email" placeholder="Enter email to invite" className="border p-2 rounded w-full text-gray-900" />
-            <select className="border p-2 rounded w-full text-gray-900">
-              <option>Can view</option>
-              <option>Can edit</option>
-              <option>Can comment</option>
-            </select>
-            <input type="date" className="border p-2 rounded w-full text-gray-900" />
-            <button className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Remove access</button>
-            <button className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300" onClick={handleShare}>
-              Copy link
-            </button>
-          </div>
-        )}
-
         {/* Form */}
         <div className="flex-1 overflow-y-auto mt-2">
           <TaskForm
-            initialData={taskData}
+            initialData={memoizedInitialData}
             existingTags={localTags}
-            onChange={setTaskData}
-            onCharChange={setTotalChar}
+            onChange={handleTaskDataChange}
+            onCharChange={handleCharChange}
             readOnly={readOnly}
           />
         </div>
@@ -200,18 +180,27 @@ export default function TaskModal({
           <span className="text-sm text-gray-500">{totalChar} characters • {formattedDateTime}</span>
           <div className="flex gap-2">
             {!readOnly && taskData.todo_id && (
-              <button type="button" onClick={handleDelete} disabled={deleting} className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+              >
                 <FiTrash2 /> Delete
               </button>
             )}
             {!readOnly && (
-              <button type="button" onClick={() => handleSave(taskData)} disabled={saving} className="px-4 py-2 bg-[#0F766E] text-white rounded hover:bg-[#115E59] disabled:opacity-50">
+              <button
+                type="button"
+                onClick={() => handleSave(taskData)}
+                disabled={saving}
+                className="px-4 py-2 bg-[#0F766E] text-white rounded hover:bg-[#115E59] disabled:opacity-50"
+              >
                 {saving ? "Saving..." : "Save"}
               </button>
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

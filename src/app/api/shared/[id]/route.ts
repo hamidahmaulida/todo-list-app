@@ -1,3 +1,4 @@
+// app/api/shared/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
@@ -7,7 +8,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Ambil user_id dari token
 function getUserIdFromToken(token: string): string | null {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { user_id: string };
@@ -20,10 +20,11 @@ function getUserIdFromToken(token: string): string | null {
 // ------------------- GET -------------------
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params; // ✅ await
+    const { id } = context.params;
+
     const { data: sharedNote, error: sharedError } = await supabase
       .from("shared_notes")
       .select(`
@@ -38,8 +39,9 @@ export async function GET(
       .eq("shared_id", id)
       .single();
 
-    if (sharedError || !sharedNote)
+    if (sharedError || !sharedNote) {
       return NextResponse.json({ error: "Shared note not found" }, { status: 404 });
+    }
 
     const { data: todo, error: todoError } = await supabase
       .from("todos")
@@ -47,8 +49,9 @@ export async function GET(
       .eq("todo_id", sharedNote.todo_id)
       .single();
 
-    if (todoError || !todo)
+    if (todoError || !todo) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+    }
 
     const { data: owner, error: ownerError } = await supabase
       .from("users")
@@ -56,10 +59,21 @@ export async function GET(
       .eq("user_id", sharedNote.owner_id)
       .single();
 
-    if (ownerError || !owner)
+    if (ownerError || !owner) {
       return NextResponse.json({ error: "Owner not found" }, { status: 404 });
+    }
 
-    const responseData = {
+    const token = req.headers.get("authorization")?.replace("Bearer ", "");
+    const user_id = token ? getUserIdFromToken(token) : null;
+
+    if (sharedNote.access_type === "invited") {
+      if (!user_id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      if (sharedNote.owner_id !== user_id && sharedNote.shared_to !== user_id) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
+    }
+
+    return NextResponse.json({
       shared_id: sharedNote.shared_id,
       access_type: sharedNote.access_type,
       permission: sharedNote.permission,
@@ -71,19 +85,7 @@ export async function GET(
         updated_at: todo.updated_at,
         user: owner,
       },
-    };
-
-    if (sharedNote.access_type === "public") return NextResponse.json(responseData);
-
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const user_id = getUserIdFromToken(token);
-    if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    if (sharedNote.shared_to !== user_id)
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-
-    return NextResponse.json(responseData);
+    });
   } catch (err) {
     console.error("GET /shared/[id] error:", err);
     return NextResponse.json({ error: "Failed to fetch shared note" }, { status: 500 });
@@ -93,10 +95,10 @@ export async function GET(
 // ------------------- PUT -------------------
 export async function PUT(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params;
+    const { id } = context.params;
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -105,6 +107,16 @@ export async function PUT(
 
     const body = await req.json();
     const { access_type, permission, shared_to } = body;
+
+    // Validasi sederhana
+    const validAccess = ["public", "invited"];
+    const validPermission = ["read", "edit", "viewer"];
+    if (access_type && !validAccess.includes(access_type)) {
+      return NextResponse.json({ error: "Invalid access_type" }, { status: 400 });
+    }
+    if (permission && !validPermission.includes(permission)) {
+      return NextResponse.json({ error: "Invalid permission" }, { status: 400 });
+    }
 
     const { data, error } = await supabase
       .from("shared_notes")
@@ -127,23 +139,26 @@ export async function PUT(
 // ------------------- DELETE -------------------
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params;
+    const { id } = context.params;
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const user_id = getUserIdFromToken(token);
     if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("shared_notes")
       .delete()
       .eq("shared_id", id)
-      .eq("owner_id", user_id);
+      .eq("owner_id", user_id)
+      .select()
+      .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data) return NextResponse.json({ error: "Shared note not found" }, { status: 404 });
 
     return NextResponse.json({ message: "Successfully unshared", shared_id: id });
   } catch (err) {

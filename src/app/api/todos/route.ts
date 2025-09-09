@@ -29,6 +29,7 @@ interface SupabaseTodoRow {
   todo_tags?: { tags: { tag_name: string } }[];
   shared_notes?: { shared_id: string; owner_id: string; shared_to: string | null; permission: "read" | "edit" }[];
 }
+
 export async function POST(req: NextRequest) {
   try {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -38,17 +39,55 @@ export async function POST(req: NextRequest) {
     if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
     const body = await req.json();
-    const { title, content } = body;
+    const { title = "", content = "", tags = [] } = body;
 
-    if (!title) return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    // Validasi: minimal satu field harus ada (title, content, atau tags)
+    const hasTitle = title.trim();
+    const hasContent = content.trim();
+    const hasTags = tags && tags.length > 0;
 
+    if (!hasTitle && !hasContent && !hasTags) {
+      return NextResponse.json({ error: "Please fill at least one field: title, content, or tag" }, { status: 400 });
+    }
+
+    // Insert todo (title boleh kosong string)
     const { data, error } = await supabase
       .from("todos")
-      .insert([{ title, content, user_id: userId }])
+      .insert([{ 
+        title: title || "", // title boleh string kosong
+        content: content || "", 
+        user_id: userId 
+      }])
       .select()
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Handle tags jika ada
+    if (hasTags) {
+      // Insert tags yang belum ada
+      for (const tagName of tags) {
+        if (tagName.trim()) {
+          // Insert tag jika belum ada (ignore conflict)
+          await supabase
+            .from("tags")
+            .upsert({ tag_name: tagName.trim() }, { onConflict: "tag_name" });
+
+          // Link tag ke todo
+          const { data: tagData } = await supabase
+            .from("tags")
+            .select("tag_id")
+            .eq("tag_name", tagName.trim())
+            .single();
+
+          if (tagData) {
+            await supabase
+              .from("todo_tags")
+              .insert({ todo_id: data.todo_id, tag_id: tagData.tag_id });
+          }
+        }
+      }
+    }
 
     return NextResponse.json(data);
   } catch (err) {
