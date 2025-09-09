@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server"; 
 import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
-import { SharedNote, TodoWithExtras } from "@/types/task";
+import { TodoWithExtras, SharedNote } from "@/types/task";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,12 +18,19 @@ function getUserIdFromToken(token: string): string | null {
   }
 }
 
-// ==================== GET ====================
-export async function GET(
-  req: NextRequest,
-  context: { params: { id: string } }
-) {
-  const { id } = context.params;
+// Supabase row type
+interface SupabaseTodoRow {
+  todo_id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user_id: string;
+  todo_tags?: { tags: { tag_name: string } }[];
+  shared_notes?: { shared_id: string; owner_id: string; shared_to: string | null; permission: "read" | "edit" }[];
+}
+
+export async function GET(req: NextRequest) {
   try {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,90 +38,45 @@ export async function GET(
     const userId = getUserIdFromToken(token);
     if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-    const { data, error } = await supabase
-      .from("shared_notes")
+    const { data: todos, error } = await supabase
+      .from("todos")
       .select(`
         *,
-        todos (
-          todo_id, title, content, created_at, updated_at, user_id,
-          todo_tags (
-            tags(tag_name)
-          )
+        todo_tags (
+          tags(tag_name)
+        ),
+        shared_notes (
+          shared_id, owner_id, shared_to, permission
         )
       `)
-      .eq("shared_id", id)
-      .single();
-
-    if (error || !data) return NextResponse.json({ error: error?.message || "Not found" }, { status: 404 });
-
-    const sharedNote: SharedNote = {
-      shared_id: data.shared_id,
-      todo_id: data.todo_id,
-      owner_id: data.owner_id,
-      shared_to: data.shared_to,
-      permission: data.permission,
-      access_type: "invited", // default
-    };
-
-    return NextResponse.json({ shared: sharedNote, task: data.todos });
-  } catch (err) {
-    console.error("GET /shared/[id] error:", err);
-    return NextResponse.json({ error: "Failed to fetch shared note" }, { status: 500 });
-  }
-}
-
-// ==================== PUT ====================
-export async function PUT(
-  req: NextRequest,
-  context: { params: { id: string } }
-) {
-  const { id } = context.params;
-  try {
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const userId = getUserIdFromToken(token);
-    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-
-    const body = await req.json();
-
-    const { error } = await supabase
-      .from("shared_notes")
-      .update({
-        shared_to: body.shared_to,
-        permission: body.permission,
-      })
-      .eq("shared_id", id);
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json({ success: true });
+    // Map ke TodoWithExtras
+    const todosWithExtras: TodoWithExtras[] = (todos as SupabaseTodoRow[]).map((t) => {
+      // Map shared_notes ke tipe SharedNote
+      const mappedSharedNotes: SharedNote[] | undefined = t.shared_notes?.map((s) => ({
+        shared_id: s.shared_id,
+        todo_id: t.todo_id,        // tambahkan todo_id
+        owner_id: s.owner_id,
+        shared_to: s.shared_to,
+        permission: s.permission,
+        access_type: "invited",    // default, bisa sesuaikan logic
+      }));
+
+      return {
+        ...t,
+        tags: t.todo_tags?.map((tt) => tt.tags.tag_name) || [],
+        shared: (t.shared_notes?.length ?? 0) > 0,
+        shared_notes: mappedSharedNotes,
+      };
+    });
+
+    return NextResponse.json(todosWithExtras);
   } catch (err) {
-    console.error("PUT /shared/[id] error:", err);
-    return NextResponse.json({ error: "Failed to update shared note" }, { status: 500 });
-  }
-}
-
-// ==================== DELETE ====================
-export async function DELETE(
-  req: NextRequest,
-  context: { params: { id: string } }
-) {
-  const { id } = context.params;
-  try {
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const userId = getUserIdFromToken(token);
-    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-
-    const { error } = await supabase.from("shared_notes").delete().eq("shared_id", id);
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("DELETE /shared/[id] error:", err);
-    return NextResponse.json({ error: "Failed to delete shared note" }, { status: 500 });
+    console.error("GET /todos error:", err);
+    return NextResponse.json({ error: "Failed to fetch todos" }, { status: 500 });
   }
 }
