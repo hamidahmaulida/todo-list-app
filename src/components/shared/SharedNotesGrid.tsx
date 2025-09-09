@@ -1,23 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface SharedNote {
   shared_id: string;
   permission: string;
-  todos: {
+  access_type: "public" | "invited";
+  task: {
     todo_id: string;
     title?: string;
     content?: string;
     created_at?: string;
     updated_at?: string;
-    users: { user_id: string; email: string };
+    user: { user_id: string; email: string };
   };
-  shared_to_user: { user_id: string; email: string };
 }
 
 export default function SharedNotesGrid() {
   const [notes, setNotes] = useState<SharedNote[]>([]);
+  const router = useRouter();
 
   const fetchSharedNotes = async () => {
     try {
@@ -45,22 +47,30 @@ export default function SharedNotesGrid() {
     fetchSharedNotes();
   }, []);
 
+  const handleClick = (id: string) => {
+    router.push(`/shared/${id}`);
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {notes.map((note) => (
-        <div key={note.shared_id} className="bg-white p-4 rounded shadow">
+        <div
+          key={note.shared_id}
+          className="bg-white p-4 rounded shadow cursor-pointer hover:bg-gray-50"
+          onClick={() => handleClick(note.shared_id)}
+        >
           <h3 className="font-bold text-lg mb-1 truncate">
-            {note.todos.title || "Untitled"}
+            {note.task.title || "Untitled"}
           </h3>
-          {note.todos.content && (
+          {note.task.content && (
             <p className="text-sm text-gray-700 line-clamp-3">
-              {note.todos.content}
+              {note.task.content}
             </p>
           )}
           <span className="text-xs text-gray-500 mt-2 block">
-            By: {note.todos.users.email} •{" "}
+            By: {note.task.user.email} •{" "}
             {new Date(
-              note.todos.updated_at || note.todos.created_at || ""
+              note.task.updated_at || note.task.created_at || ""
             ).toLocaleString("id-ID")}
           </span>
         </div>
