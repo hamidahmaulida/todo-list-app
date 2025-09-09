@@ -1,4 +1,3 @@
-// app/api/shared/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
@@ -108,9 +107,9 @@ export async function PUT(
     const body = await req.json();
     const { access_type, permission, shared_to } = body;
 
-    // Validasi sederhana
     const validAccess = ["public", "invited"];
     const validPermission = ["read", "edit", "viewer"];
+
     if (access_type && !validAccess.includes(access_type)) {
       return NextResponse.json({ error: "Invalid access_type" }, { status: 400 });
     }
