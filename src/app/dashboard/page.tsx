@@ -83,28 +83,33 @@ export default function DashboardPage() {
         </div>
 
         {tags.length > 0 && (
-          <div className="flex gap-2 flex-wrap mb-4">
+        <div className="flex gap-2 flex-wrap mb-4">
+          <button
+            onClick={() => setFilterTag(null)}
+            className={`px-3 py-1 rounded-full text-sm border ${
+              filterTag === null
+                ? "bg-[#0F766E] text-white"
+                : "bg-gray-100 text-gray-700"
+            }`}
+          >
+            All
+          </button>
+          {tags.map((tag) => (
             <button
-              onClick={() => setFilterTag(null)}
+              key={tag}
+              onClick={() => setFilterTag(tag)}
               className={`px-3 py-1 rounded-full text-sm border ${
-                filterTag === null ? "bg-[#0F766E] text-white" : "bg-gray-100"
+                filterTag === tag
+                  ? "bg-[#0F766E] text-white"
+                  : "bg-gray-100 text-gray-700"
               }`}
             >
-              All
+              {tag}
             </button>
-            {tags.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => setFilterTag(tag)}
-                className={`px-3 py-1 rounded-full text-sm border ${
-                  filterTag === tag ? "bg-[#0F766E] text-white" : "bg-gray-100"
-                }`}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        )}
+          ))}
+        </div>
+      )}
+
 
         <TaskGrid
           tasks={filteredTasks}
