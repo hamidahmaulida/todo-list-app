@@ -1,4 +1,5 @@
-// src/types/todo.ts
+// src/types/task.ts
+// === Core Types ===
 export interface Todo {
   todo_id: string;
   user_id: string;
@@ -24,12 +25,52 @@ export interface SharedNote {
   todo_id: string;
   owner_id: string;
   shared_to: string;
-  permission: string;
+  permission: "read" | "edit";
 }
 
+// === Extended Types ===
 export interface TodoWithExtras extends Todo {
   todo_tags?: { tags: Tag }[];
   shared_notes?: SharedNote[];
   tags?: string[];
   shared?: boolean;
 }
+
+// === Supabase Query Types ===
+export interface SupabaseUser {
+  email: string;
+}
+
+export interface SupabaseTaskRow {
+  todo_id: string;
+  title: string | null;
+  content: string | null;
+  created_at: string;
+  updated_at: string;
+  users: SupabaseUser | null;
+}
+
+export interface SupabaseSharedRow {
+  shared_id: string;
+  permission: "read" | "edit";
+  created_at: string;
+  todos: SupabaseTaskRow;
+}
+
+// === For UI consumption ===
+export interface Task {
+  todo_id: string;
+  title: string | null;
+  content: string | null;
+  created_at: string;
+  updated_at: string;
+  user: SupabaseUser | null;
+}
+
+export interface SharedTask {
+  shared_id: string;
+  permission: "read" | "edit";
+  created_at: string;
+  task: Task;
+}
+

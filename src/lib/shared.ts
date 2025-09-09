@@ -1,46 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  SupabaseSharedRow,
+  SupabaseTaskRow,
+  SharedTask,
+} from "@/types/task";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-export interface User {
-  email: string;
-}
-
-export interface Task {
-  todo_id: string;
-  title: string | null;
-  content: string | null;
-  created_at: string;
-  updated_at: string;
-  user: User | null;
-}
-
-export interface SharedTask {
-  shared_id: string;
-  permission: "read" | "edit";
-  created_at: string;
-  task: Task;
-}
-
-// tipe khusus untuk hasil query Supabase
-interface SupabaseTaskRow {
-  todo_id: string;
-  title: string | null;
-  content: string | null;
-  created_at: string;
-  updated_at: string;
-  users: { email: string } | null;
-}
-
-interface SupabaseSharedRow {
-  shared_id: string;
-  permission: "read" | "edit";
-  created_at: string;
-  todos: SupabaseTaskRow;
-}
 
 export async function getSharedTask(sharedId: string): Promise<SharedTask | null> {
   try {
@@ -60,14 +28,9 @@ export async function getSharedTask(sharedId: string): Promise<SharedTask | null
         )
       `)
       .eq("shared_id", sharedId)
-      .single<SupabaseSharedRow>();
+      .single<SupabaseSharedRow>(); // pakai tipe, bukan any
 
-    if (error) {
-      console.error("Error fetching shared task:", error);
-      return null;
-    }
-
-    if (!data?.todos) return null;
+    if (error || !data?.todos) return null;
 
     const taskRow: SupabaseTaskRow = data.todos;
 
@@ -81,7 +44,7 @@ export async function getSharedTask(sharedId: string): Promise<SharedTask | null
         content: taskRow.content,
         created_at: taskRow.created_at,
         updated_at: taskRow.updated_at,
-        user: taskRow.users ? { email: taskRow.users.email } : null,
+        user: taskRow.users,
       },
     };
   } catch (err) {
