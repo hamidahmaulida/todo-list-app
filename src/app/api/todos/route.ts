@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
-import { Todo, Tag, TodoTag, SharedNote, TodoWithExtras } from "@/types/task";
+import { Todo, Tag, TodoTag, TodoWithExtras } from "@/types/task";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

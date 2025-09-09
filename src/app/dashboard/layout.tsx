@@ -69,11 +69,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   if (!user) return null;
 
-  const openTaskModal = () => {
-    if (!sidebarOpen) setSidebarOpen(true); // state tetap ada meski Sidebar dinonaktifkan
-    setIsTaskModalOpen(true);
-  };
-
   const renderChildren = () => {
     if (React.isValidElement(children)) {
       // FIXED: Specify proper type instead of 'any'

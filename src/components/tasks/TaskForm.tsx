@@ -25,13 +25,14 @@ export default function TaskForm({
   const [tagInput, setTagInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
 
+  // Sync with initialData when it changes
   useEffect(() => {
-    if ((initialData?.title ?? "") !== title) setTitle(initialData?.title ?? "");
-    if ((initialData?.content ?? "") !== content) setContent(initialData?.content ?? "");
-    if (JSON.stringify(initialData?.tags ?? []) !== JSON.stringify(tags))
-      setTags(initialData?.tags ?? []);
-  }, [initialData]);
+    setTitle(initialData?.title ?? "");
+    setContent(initialData?.content ?? "");
+    setTags(initialData?.tags ?? []);
+  }, [initialData?.title, initialData?.content, initialData?.tags]);
 
+  // Notify parent of changes
   useEffect(() => {
     if (onCharChange) onCharChange(title.length + content.length);
     onChange?.({ title, content, tags });

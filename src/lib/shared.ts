@@ -6,6 +6,21 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Define types for better type safety
+interface UserData {
+  user_id: string;
+  email: string;
+}
+
+interface TodoWithUser {
+  todo_id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  users: UserData | UserData[];
+}
+
 export async function getSharedTask(sharedId: string): Promise<SharedTask | null> {
   try {
     // Step 1: Get shared note info
@@ -42,9 +57,9 @@ export async function getSharedTask(sharedId: string): Promise<SharedTask | null
       return null;
     }
 
-    // Safely extract data without type assertion
-    const users = todo.users as any;
-    const userInfo = Array.isArray(users) ? users[0] : users;
+    // Safely extract data with proper typing
+    const todoData = todo as TodoWithUser;
+    const userInfo = Array.isArray(todoData.users) ? todoData.users[0] : todoData.users;
     
     if (!userInfo || !userInfo.user_id || !userInfo.email) {
       console.error("Invalid user data:", userInfo);
@@ -57,11 +72,11 @@ export async function getSharedTask(sharedId: string): Promise<SharedTask | null
       access_type: sharedNote.access_type as "public" | "invited",
       created_at: sharedNote.created_at,
       task: {
-        todo_id: todo.todo_id,
-        title: todo.title,
-        content: todo.content,
-        created_at: todo.created_at,
-        updated_at: todo.updated_at,
+        todo_id: todoData.todo_id,
+        title: todoData.title,
+        content: todoData.content,
+        created_at: todoData.created_at,
+        updated_at: todoData.updated_at,
         user: {
           user_id: userInfo.user_id,
           email: userInfo.email
@@ -113,10 +128,11 @@ export async function getSharedTaskDebug(sharedId: string): Promise<SharedTask |
       return null;
     }
 
-    const users = todo.users as any;
-    const userInfo = Array.isArray(users) ? users[0] : users;
+    // Use proper typing instead of any
+    const todoData = todo as TodoWithUser;
+    const userInfo = Array.isArray(todoData.users) ? todoData.users[0] : todoData.users;
     
-    console.log("User info:", { users, userInfo });
+    console.log("User info:", { users: todoData.users, userInfo });
 
     if (!userInfo?.user_id || !userInfo?.email) {
       console.error("Missing user data");
@@ -129,11 +145,11 @@ export async function getSharedTaskDebug(sharedId: string): Promise<SharedTask |
       access_type: sharedNote.access_type as "public" | "invited",
       created_at: sharedNote.created_at,
       task: {
-        todo_id: todo.todo_id,
-        title: todo.title,
-        content: todo.content,
-        created_at: todo.created_at,
-        updated_at: todo.updated_at,
+        todo_id: todoData.todo_id,
+        title: todoData.title,
+        content: todoData.content,
+        created_at: todoData.created_at,
+        updated_at: todoData.updated_at,
         user: {
           user_id: userInfo.user_id,
           email: userInfo.email

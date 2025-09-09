@@ -36,11 +36,18 @@ export default function TaskModal({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showShare, setShowShare] = useState(false);
 
-  useEffect(() => setLocalTags(existingTags), [existingTags]);
+  // Sync localTags ketika existingTags berubah
+  useEffect(() => {
+    setLocalTags(existingTags);
+  }, [existingTags]);
+
+  // Sync taskData dan totalChar ketika initialData berubah
   useEffect(() => {
     setTaskData(initialData || {});
-    setTotalChar((initialData?.title?.length || 0) + (initialData?.content?.length || 0));
-  }, [initialData]);
+    setTotalChar(
+      (initialData?.title?.length ?? 0) + (initialData?.content?.length ?? 0)
+    );
+  }, [initialData?.title, initialData?.content, initialData?.tags]);
 
   if (!isOpen) return null;
 
@@ -82,7 +89,6 @@ export default function TaskModal({
         setLocalTags(newUniqueTags);
       }
 
-      // FIXED: Type-safe casting with type guard
       onTaskSaved?.(data as TodoWithExtras);
       onClose();
     } catch (err) {
