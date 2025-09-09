@@ -17,7 +17,6 @@ function getUserIdFromToken(token: string) {
   }
 }
 
-// ✅ POST share note
 export async function POST(req: NextRequest) {
   try {
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -39,22 +38,18 @@ export async function POST(req: NextRequest) {
       .eq("user_id", owner_id)
       .single();
 
-    if (fetchError || !todo) return NextResponse.json({ error: "Todo not found or access denied" }, { status: 404 });
+    if (fetchError || !todo)
+      return NextResponse.json({ error: "Todo not found or access denied" }, { status: 404 });
 
     // insert share
     const { data, error } = await supabase
       .from("shared_notes")
-      .insert([{ 
-        todo_id, 
-        owner_id, 
-        permission,
-        access_type,
-        shared_to
-      }])
+      .insert([{ todo_id, owner_id, permission, access_type, shared_to }])
       .select()
       .single();
 
-    if (error || !data) return NextResponse.json({ error: error?.message || "Failed to create share" }, { status: 500 });
+    if (error || !data)
+      return NextResponse.json({ error: error?.message || "Failed to create share" }, { status: 500 });
 
     const shareUrl = `${req.nextUrl.origin}/shared/${data.shared_id}`;
     return NextResponse.json({ ...data, share_url: shareUrl }, { status: 201 });
@@ -64,4 +59,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to share note" }, { status: 500 });
   }
 }
-
