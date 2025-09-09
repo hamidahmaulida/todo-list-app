@@ -1,45 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import jwt from "jsonwebtoken";
+import { Todo, Tag, TodoTag, SharedNote, TodoWithExtras } from "@/types/task";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-interface Todo {
-  todo_id: string;
-  user_id: string;
-  title: string | null;
-  content: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Tag {
-  tag_id: string;
-  user_id: string;
-  tag_name: string;
-}
-
-interface TodoTag {
-  todo_id: string;
-  tag_id: string;
-}
-
-interface SharedNote {
-  shared_id: string;
-  todo_id: string;
-  shared_to: string;
-}
-
-interface TodoWithExtras extends Todo {
-  todo_tags?: { tags: Tag }[];
-  shared_notes?: SharedNote[];
-}
-
 // ==================== Helpers ====================
-function getUserIdFromToken(token: string) {
+function getUserIdFromToken(token: string): string | null {
   try {
     const secret = process.env.JWT_SECRET!;
     const payload = jwt.verify(token, secret) as { userId: string };
@@ -116,7 +86,7 @@ export async function POST(req: NextRequest) {
         .select("*")
         .eq("user_id", user_id);
 
-      const newTags = tags.filter((t) => !existingTags?.some((et) => et.tag_name === t));
+      const newTags = tags.filter((t) => !(existingTags as Tag[])?.some((et) => et.tag_name === t));
 
       if (newTags.length > 0) {
         await supabase.from("tags").insert(newTags.map((tag) => ({ user_id, tag_name: tag })));
@@ -129,7 +99,7 @@ export async function POST(req: NextRequest) {
 
       const todoTags: TodoTag[] = tags
         .map((tagName) => {
-          const tag = allTags?.find((t) => t.tag_name === tagName);
+          const tag = (allTags as Tag[])?.find((t) => t.tag_name === tagName);
           return tag ? { todo_id: todoCasted.todo_id, tag_id: tag.tag_id } : null;
         })
         .filter((x): x is TodoTag => x !== null);

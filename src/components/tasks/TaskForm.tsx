@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { FiPlus } from "react-icons/fi";
-import { Task } from "@/types/task";
+import { TodoWithExtras } from "@/types/task";
 
 interface TaskFormProps {
-  initialData?: Partial<Task>;
+  initialData?: Partial<TodoWithExtras>;
   existingTags: string[];
-  onChange?: (updated: Partial<Task>) => void;
+  onChange?: (updated: Partial<TodoWithExtras>) => void;
   onCharChange?: (count: number) => void;
   readOnly?: boolean;
 }

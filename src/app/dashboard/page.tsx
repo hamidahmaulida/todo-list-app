@@ -1,13 +1,13 @@
-"use client";
+"use client"; 
 import { useState, useEffect } from "react";
 import TaskGrid from "@/components/tasks/TaskGrid";
 import TaskModal from "@/components/tasks/TaskModal";
-import { Task } from "@/types/task";
+import { TodoWithExtras } from "@/types/task";
 
 export default function DashboardPage() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<TodoWithExtras[]>([]);
   const [tags, setTags] = useState<string[]>([]);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedTask, setSelectedTask] = useState<TodoWithExtras | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
 
@@ -24,7 +24,7 @@ export default function DashboardPage() {
       });
       if (!res.ok) throw new Error("Failed to fetch tasks");
 
-      const data: Task[] = await res.json();
+      const data: TodoWithExtras[] = await res.json();
 
       const tasksWithShared = data.map((t) => ({
         ...t,
@@ -46,7 +46,7 @@ export default function DashboardPage() {
     fetchTasks();
   }, []);
 
-  const handleTaskSaved = (savedTask: Task & { _deleted?: boolean }) => {
+  const handleTaskSaved = (savedTask: TodoWithExtras & { _deleted?: boolean }) => {
     if (savedTask._deleted) {
       setTasks((prev) => prev.filter((t) => t.todo_id !== savedTask.todo_id));
       return;
@@ -64,7 +64,7 @@ export default function DashboardPage() {
     setIsModalOpen(false);
   };
 
-  const openTaskModal = (task?: Task) => {
+  const openTaskModal = (task?: TodoWithExtras) => {
     setSelectedTask(task ?? null);
     setIsModalOpen(true);
   };
@@ -121,7 +121,7 @@ export default function DashboardPage() {
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             onTaskSaved={handleTaskSaved}
-            onTaskDeleted={(todo_id) => handleTaskSaved({ todo_id, _deleted: true })}
+            onTaskDeleted={(todo_id) => handleTaskSaved({ todo_id, _deleted: true } as any)}
             initialData={selectedTask ?? undefined}
             existingTags={tags}
             readOnly={selectedTask?.shared || false}

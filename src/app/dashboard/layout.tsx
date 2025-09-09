@@ -12,6 +12,12 @@ interface DashboardLayoutProps {
   children: ReactNode;
 }
 
+// Interface untuk props yang akan di-pass ke children
+interface ChildProps {
+  isModalOpen: boolean;
+  setIsModalOpen: (open: boolean) => void;
+}
+
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -70,7 +76,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const renderChildren = () => {
     if (React.isValidElement(children)) {
-      return React.cloneElement(children as ReactElement<any>, {
+      // FIXED: Specify proper type instead of 'any'
+      return React.cloneElement(children as ReactElement<ChildProps>, {
         isModalOpen: isTaskModalOpen,
         setIsModalOpen: setIsTaskModalOpen,
       });

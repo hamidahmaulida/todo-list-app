@@ -2,19 +2,22 @@
 
 import { useState, useEffect } from "react";
 import { FiX, FiTrash2, FiShare2, FiMaximize2, FiMinimize2 } from "react-icons/fi";
-import { Task } from "@/types/task";
+import { TodoWithExtras } from "@/types/task";
 import { formatDate } from "@/lib/formatDate";
 import TaskForm from "./TaskForm";
 
 interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialData?: Partial<Task>;
+  initialData?: Partial<TodoWithExtras>;
   existingTags: string[];
-  onTaskSaved?: (task: Task) => void;
+  onTaskSaved?: (task: TodoWithExtras) => void;
   onTaskDeleted?: (todo_id: string) => void;
   readOnly?: boolean;
 }
+
+// Type for API response
+type SaveTaskResponse = TodoWithExtras | { error: string };
 
 export default function TaskModal({
   isOpen,
@@ -28,7 +31,7 @@ export default function TaskModal({
   const [totalChar, setTotalChar] = useState(0);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [taskData, setTaskData] = useState<Partial<Task>>(initialData || {});
+  const [taskData, setTaskData] = useState<Partial<TodoWithExtras>>(initialData || {});
   const [localTags, setLocalTags] = useState<string[]>(existingTags);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showShare, setShowShare] = useState(false);
@@ -43,7 +46,7 @@ export default function TaskModal({
 
   const formattedDateTime = formatDate(initialData?.updated_at || initialData?.created_at);
 
-  async function handleSave(task: Partial<Task>) {
+  async function handleSave(task: Partial<TodoWithExtras>) {
     if (readOnly) return;
 
     try {
@@ -51,7 +54,7 @@ export default function TaskModal({
       if (!token) return alert("You are not logged in!");
 
       setSaving(true);
-      const payload: Partial<Task> = { ...task };
+      const payload: Partial<TodoWithExtras> = { ...task };
       if (initialData?.todo_id) payload.todo_id = initialData.todo_id;
 
       const method = payload.todo_id ? "PUT" : "POST";
@@ -66,7 +69,7 @@ export default function TaskModal({
         body: JSON.stringify(payload),
       });
 
-      const data: Task | { error: string } = await res.json();
+      const data: SaveTaskResponse = await res.json();
 
       if (!res.ok || "error" in data) {
         const errMsg = "error" in data ? data.error : "Unknown error";
@@ -79,7 +82,8 @@ export default function TaskModal({
         setLocalTags(newUniqueTags);
       }
 
-      onTaskSaved?.(data as Task);
+      // FIXED: Type-safe casting with type guard
+      onTaskSaved?.(data as TodoWithExtras);
       onClose();
     } catch (err) {
       console.error("Error saving task:", err);
