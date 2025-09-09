@@ -7,7 +7,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ✅ Fungsi untuk ambil user_id dari token
+// Ambil user_id dari token
 function getUserIdFromToken(token: string): string | null {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET!) as { user_id: string };
@@ -17,14 +17,13 @@ function getUserIdFromToken(token: string): string | null {
   }
 }
 
-// ------------------- GET /api/shared/[id] -------------------
+// ------------------- GET -------------------
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
-
+    const { id } = await context.params; // ✅ await
     const { data: sharedNote, error: sharedError } = await supabase
       .from("shared_notes")
       .select(`
@@ -76,7 +75,6 @@ export async function GET(
 
     if (sharedNote.access_type === "public") return NextResponse.json(responseData);
 
-    // Invited access → wajib login dan user_id cocok
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -92,13 +90,13 @@ export async function GET(
   }
 }
 
-// ------------------- PUT /api/shared/[id] -------------------
+// ------------------- PUT -------------------
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await context.params;
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -126,13 +124,13 @@ export async function PUT(
   }
 }
 
-// ------------------- DELETE /api/shared/[id] -------------------
+// ------------------- DELETE -------------------
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await context.params;
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -153,4 +151,3 @@ export async function DELETE(
     return NextResponse.json({ error: "Failed to delete shared note" }, { status: 500 });
   }
 }
-
