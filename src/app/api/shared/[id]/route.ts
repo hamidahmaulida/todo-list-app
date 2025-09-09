@@ -29,46 +29,96 @@ export async function GET(
   try {
     const { id } = await context.params;
 
-    const { data, error } = await supabase
+    // Step 1: Get shared note data
+    const { data: sharedNote, error: sharedError } = await supabase
       .from("shared_notes")
       .select(`
         shared_id,
+        todo_id,
+        owner_id,
         access_type,
         permission,
         shared_to,
-        todos (
-          todo_id,
-          title,
-          content,
-          created_at,
-          updated_at,
-          users (user_id, email)
-        )
+        created_at
       `)
       .eq("shared_id", id)
       .single();
 
-    if (error || !data) {
+    if (sharedError || !sharedNote) {
+      console.error("Shared note not found:", sharedError);
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    if (data.access_type === "public") {
-      return NextResponse.json(data);
+    // Step 2: Get todo data
+    const { data: todo, error: todoError } = await supabase
+      .from("todos")
+      .select(`
+        todo_id,
+        title,
+        content,
+        created_at,
+        updated_at,
+        user_id
+      `)
+      .eq("todo_id", sharedNote.todo_id)
+      .single();
+
+    if (todoError || !todo) {
+      console.error("Todo not found:", todoError);
+      return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
 
+    // Step 3: Get owner data
+    const { data: owner, error: ownerError } = await supabase
+      .from("users")
+      .select("user_id, email")
+      .eq("user_id", sharedNote.owner_id)
+      .single();
+
+    if (ownerError || !owner) {
+      console.error("Owner not found:", ownerError);
+      return NextResponse.json({ error: "Owner not found" }, { status: 404 });
+    }
+
+    // Prepare response data
+    const responseData = {
+      shared_id: sharedNote.shared_id,
+      access_type: sharedNote.access_type,
+      permission: sharedNote.permission,
+      task: {
+        todo_id: todo.todo_id,
+        title: todo.title,
+        content: todo.content,
+        created_at: todo.created_at,
+        updated_at: todo.updated_at,
+        user: owner
+      }
+    };
+
+    // Check access permissions
+    if (sharedNote.access_type === "public") {
+      return NextResponse.json(responseData);
+    }
+
+    // For invited access, check authentication
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const user_id = getUserIdFromToken(token);
-    if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    if (!user_id) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
 
-    if (data.shared_to !== user_id) {
+    if (sharedNote.shared_to !== user_id) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(responseData);
+
   } catch (err) {
-    console.error("GET /shared error:", err);
+    console.error("GET /shared/[id] error:", err);
     return NextResponse.json({ error: "Failed to fetch shared note" }, { status: 500 });
   }
 }

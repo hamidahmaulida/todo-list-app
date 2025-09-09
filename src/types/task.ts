@@ -24,8 +24,9 @@ export interface SharedNote {
   shared_id: string;
   todo_id: string;
   owner_id: string;
-  shared_to: string;
+  shared_to: string | null; // bisa null untuk public shares
   permission: "read" | "edit";
+  access_type: "public" | "invited"; // tambahan ini penting
 }
 
 // === Extended Types ===
@@ -38,6 +39,7 @@ export interface TodoWithExtras extends Todo {
 
 // === Supabase Query Types ===
 export interface SupabaseUser {
+  user_id: string; // tambah user_id untuk konsistensi
   email: string;
 }
 
@@ -53,6 +55,7 @@ export interface SupabaseTaskRow {
 export interface SupabaseSharedRow {
   shared_id: string;
   permission: "read" | "edit";
+  access_type: "public" | "invited"; // tambahan ini
   created_at: string;
   todos: SupabaseTaskRow;
 }
@@ -70,7 +73,7 @@ export interface Task {
 export interface SharedTask {
   shared_id: string;
   permission: "read" | "edit";
+  access_type: "public" | "invited"; // tambahan ini penting untuk logic
   created_at: string;
   task: Task;
 }
-
