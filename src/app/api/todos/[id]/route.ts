@@ -22,9 +22,9 @@ function getUserIdFromToken(token: string) {
  * - public → bisa tanpa login
  * - invited → wajib login dan cocok user_id
  */
-export async function GET(req: NextRequest, context: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = context.params;
+    const { id } = params;
 
     // Step 1: Get shared note data
     const { data: sharedNote, error: sharedError } = await supabase
@@ -77,7 +77,6 @@ export async function GET(req: NextRequest, context: { params: { id: string } })
       return NextResponse.json({ error: "Owner not found" }, { status: 404 });
     }
 
-    // Prepare response data
     const responseData = {
       shared_id: sharedNote.shared_id,
       access_type: sharedNote.access_type,
@@ -92,27 +91,21 @@ export async function GET(req: NextRequest, context: { params: { id: string } })
       }
     };
 
-    // Check access permissions
-    if (sharedNote.access_type === "public") {
-      return NextResponse.json(responseData);
-    }
+    // Public access → langsung return
+    if (sharedNote.access_type === "public") return NextResponse.json(responseData);
 
-    // For invited access, check authentication
+    // Invited access → check login & shared_to
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const user_id = getUserIdFromToken(token);
-    if (!user_id) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
+    if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
-    if (sharedNote.shared_to !== user_id) {
+    if (sharedNote.shared_to !== user_id)
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
 
     return NextResponse.json(responseData);
+
   } catch (err) {
     console.error("GET /shared/[id] error:", err);
     return NextResponse.json({ error: "Failed to fetch shared note" }, { status: 500 });
@@ -122,9 +115,9 @@ export async function GET(req: NextRequest, context: { params: { id: string } })
 /**
  * PUT update shared note
  */
-export async function PUT(req: NextRequest, context: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = context.params;
+    const { id } = params;
 
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -143,11 +136,10 @@ export async function PUT(req: NextRequest, context: { params: { id: string } })
       .select()
       .single();
 
-    if (error || !data) {
-      return NextResponse.json({ error: error?.message || "Failed to update" }, { status: 400 });
-    }
+    if (error || !data) return NextResponse.json({ error: error?.message || "Failed to update" }, { status: 400 });
 
     return NextResponse.json(data);
+
   } catch (err) {
     console.error("PUT /shared/[id] error:", err);
     return NextResponse.json({ error: "Failed to update shared note" }, { status: 500 });
@@ -157,9 +149,9 @@ export async function PUT(req: NextRequest, context: { params: { id: string } })
 /**
  * DELETE shared note
  */
-export async function DELETE(req: NextRequest, context: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = context.params;
+    const { id } = params;
 
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -173,11 +165,10 @@ export async function DELETE(req: NextRequest, context: { params: { id: string }
       .eq("shared_id", id)
       .eq("owner_id", user_id);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ message: "Successfully unshared", shared_id: id });
+
   } catch (err) {
     console.error("DELETE /shared/[id] error:", err);
     return NextResponse.json({ error: "Failed to delete shared note" }, { status: 500 });
