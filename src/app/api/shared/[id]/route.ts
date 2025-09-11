@@ -77,19 +77,24 @@ export async function GET(
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     const user_id = token ? getUserIdFromToken(token) : null;
 
-    // **PERBAIKAN**: Cek authorization hanya untuk invited shares
+    // **PERBAIKAN**: Handle invalid invited shares
     if (sharedNote.access_type === "invited") {
-      // Untuk invited shares, butuh authentication
-      if (!user_id) {
-        return NextResponse.json({ error: "Authentication required for invited shares" }, { status: 401 });
-      }
-      
-      // Cek apakah user adalah owner atau invited user
-      if (sharedNote.owner_id !== user_id && sharedNote.shared_to !== user_id) {
-        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      // Jika invited tapi shared_to NULL, treat as public
+      if (!sharedNote.shared_to) {
+        console.log("Invalid invited share (no shared_to), treating as public");
+      } else {
+        // Untuk invited shares dengan shared_to, butuh authentication
+        if (!user_id) {
+          return NextResponse.json({ error: "Authentication required for invited shares" }, { status: 401 });
+        }
+        
+        // Cek apakah user adalah owner atau invited user
+        if (sharedNote.owner_id !== user_id && sharedNote.shared_to !== user_id) {
+          return NextResponse.json({ error: "Access denied" }, { status: 403 });
+        }
       }
     }
-    // Untuk public shares, tidak perlu authentication - langsung allow
+    // Untuk public shares atau invalid invited shares, tidak perlu authentication
 
     console.log(`Shared note accessed: ${id}, type: ${sharedNote.access_type}, user: ${user_id || 'anonymous'}`);
 
