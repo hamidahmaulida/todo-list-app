@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import TaskGrid from "@/components/tasks/TaskGrid";
 import TaskModal from "@/components/tasks/TaskModal";
 import { TodoWithExtras } from "@/types/task";
@@ -30,8 +30,8 @@ export default function DashboardPage() {
 
   const currentUserId = getCurrentUserId();
 
-  // Fetch tasks dari API
-  const fetchTasks = async () => {
+  // Fetch tasks dari API - wrapped with useCallback
+  const fetchTasks = useCallback(async () => {
     try {
       const token = getToken();
       if (!token) throw new Error("No token found");
@@ -57,11 +57,11 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Failed to fetch tasks:", err);
     }
-  };
+  }, []); // Empty dependency array since getToken is defined inside and doesn't depend on external values
 
   useEffect(() => {
     fetchTasks();
-  }, []);
+  }, [fetchTasks]); // Now fetchTasks is properly included in dependencies
 
   const handleTaskSaved = (savedTask: TodoWithExtras & { _deleted?: boolean }) => {
     if (savedTask._deleted) {

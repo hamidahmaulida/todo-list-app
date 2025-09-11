@@ -2,7 +2,7 @@
 import React, { ReactElement, ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import NavbarDashboard from "@/components/navbars/NavbarDashboard";
-// import Sidebar from "@/components/sidebar/Sidebar"; // Sidebar dinonaktifkan sementara
+// import Sidebar from "@/components/sidebar/Sidebar"; // Uncomment when ready to use
 
 interface User {
   email: string;
@@ -22,7 +22,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false); // masih ada state untuk sidebar
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Keep for future sidebar implementation
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
   // Cek auth user
@@ -80,21 +80,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return children;
   };
 
+  const handleToggleSidebar = () => {
+    setSidebarOpen((prev) => !prev);
+    // TODO: Remove this console.log when sidebar is implemented
+    console.log("Sidebar toggle clicked, sidebarOpen:", !sidebarOpen);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#fcfbf8]">
       {/* Navbar */}
       <NavbarDashboard
         user={{ name: user.email, email: user.email }}
-        onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+        onToggleSidebar={handleToggleSidebar}
       />
 
       <div className="flex flex-1 relative">
-        {/* Sidebar masih bisa diaktifkan kapan saja */}
+        {/* Sidebar - Uncomment when ready to use */}
         {/*
         <Sidebar
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
-          onNewTask={openTaskModal}
+          onNewTask={() => setIsTaskModalOpen(true)}
         />
         */}
 

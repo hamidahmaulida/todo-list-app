@@ -53,7 +53,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Insert baru kalau belum ada
-    const insertData: any = { 
+    const insertData: {
+      todo_id: string;
+      owner_id: string;
+      access_type: string;
+      permission: string;
+      shared_to?: string;
+    } = { 
       todo_id, 
       owner_id, 
       access_type, 

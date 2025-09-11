@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { CheckCircle2, Clock, AlertCircle, ArrowLeft, Eye, Edit3, Lock, Share2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, ArrowLeft, Eye, Edit3, Lock, Share2 } from 'lucide-react';
+// REMOVED: Clock import since it's not being used
 
 interface Task {
   todo_id: string;
@@ -32,13 +33,10 @@ const SharedTaskPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  useEffect(() => {
+  // FIXED: Wrapped fetchSharedTask with useCallback
+  const fetchSharedTask = useCallback(async () => {
     if (!shareId) return;
     
-    fetchSharedTask();
-  }, [shareId]);
-  
-  const fetchSharedTask = async () => {
     try {
       setLoading(true);
       
@@ -79,7 +77,12 @@ const SharedTaskPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [shareId]); // shareId is the only dependency
+  
+  // FIXED: Added fetchSharedTask to dependency array
+  useEffect(() => {
+    fetchSharedTask();
+  }, [fetchSharedTask]);
   
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('id-ID', {

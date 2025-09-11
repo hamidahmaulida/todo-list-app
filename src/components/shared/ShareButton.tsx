@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { FiShare2, FiCopy, FiTrash2, FiLock, FiGlobe, FiCheck, FiChevronDown } from "react-icons/fi";
 
 interface ShareButtonProps {
@@ -16,7 +16,6 @@ interface ShareData {
 
 export default function ShareButton({ todo_id }: ShareButtonProps) {
   const [showModal, setShowModal] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,6 +31,26 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
 
   const modalRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const checkExistingShare = useCallback(async () => {
+    try {
+      const res = await fetch("/api/shared", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ todo_id, access_type: "public", permission: "read" }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.shared_id) {
+        setShareData(data);
+        setAccessType(data.access_type || "public");
+        setPermission(data.permission || "read");
+        if (data.shared_to) setInviteEmail(data.shared_to);
+      }
+    } catch (error) {
+      console.error("Error checking existing share:", error);
+    }
+  }, [todo_id]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -51,7 +70,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
     if (showModal && !shareData) {
       checkExistingShare();
     }
-  }, [showModal, todo_id]);
+  }, [showModal, checkExistingShare, shareData]);
 
   const showMessage = (message: string, type: "success" | "error") => {
     if (type === "success") {
@@ -63,32 +82,17 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
     }
   };
 
-  const checkExistingShare = async () => {
-    try {
-      const res = await fetch("/api/shared", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ todo_id, access_type: "public", permission: "read" }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.shared_id) {
-        setShareData(data);
-        setAccessType(data.access_type || "public");
-        setPermission(data.permission || "read");
-        if (data.shared_to) setInviteEmail(data.shared_to);
-      }
-    } catch (err) {
-      console.error("Error checking existing share:", err);
-    }
-  };
-
   const handleCreateShare = async () => {
     setErrorMsg(null);
     setLoading(true);
     
     try {
-      const payload: any = { 
+      const payload: {
+        todo_id: string;
+        access_type: string;
+        permission: string;
+        shared_to?: string;
+      } = { 
         todo_id, 
         access_type: accessType, 
         permission 
@@ -111,8 +115,8 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
       } else {
         showMessage(data.error || "Failed to create share", "error");
       }
-    } catch (err) {
-      console.error("Error creating share:", err);
+    } catch (error) {
+      console.error("Error creating share:", error);
       showMessage("Something went wrong", "error");
     } finally {
       setLoading(false);
@@ -124,10 +128,8 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
     
     try {
       await navigator.clipboard.writeText(shareData.share_url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
       showMessage("Link copied to clipboard", "success");
-    } catch (err) {
+    } catch (error) {
       showMessage("Failed to copy link", "error");
     }
   };
@@ -138,7 +140,11 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
     setLoading(true);
     try {
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-      const payload: any = { 
+      const payload: {
+        access_type: string;
+        permission: string;
+        shared_to?: string;
+      } = { 
         access_type: accessType, 
         permission 
       };
@@ -163,7 +169,8 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
         const data = await res.json();
         showMessage(data.error || "Failed to update", "error");
       }
-    } catch (err) {
+    } catch (error) {
+      console.error("Error updating share:", error);
       showMessage("Failed to update share", "error");
     } finally {
       setLoading(false);
@@ -191,7 +198,8 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
         const data = await res.json();
         showMessage(data.error || "Failed to stop sharing", "error");
       }
-    } catch (err) {
+    } catch (error) {
+      console.error("Error deleting share:", error);
       showMessage("Failed to stop sharing", "error");
     } finally {
       setLoading(false);
@@ -250,8 +258,8 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
                   type="email"
                   placeholder="Add people and groups"
                   value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInviteEmail(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
                 />
                 <button
                   onClick={handleInvite}
@@ -273,7 +281,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
                   </div>
                   <select
                     value={permission}
-                    onChange={(e) => setPermission(e.target.value as any)}
+                    onChange={(e) => setPermission(e.target.value as "read" | "edit" | "viewer")}
                     className="text-sm border-none bg-transparent focus:ring-0 text-gray-600"
                   >
                     <option value="read">Can view</option>
