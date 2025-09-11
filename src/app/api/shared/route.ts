@@ -9,7 +9,7 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { todo_id, access_type = "public", permission = "read" } = await req.json();
+    const { todo_id, access_type = "public", permission = "read", shared_to } = await req.json();
 
     if (!todo_id) return NextResponse.json({ error: "Missing todo_id" }, { status: 400 });
 
@@ -24,33 +24,66 @@ export async function POST(req: NextRequest) {
 
     const owner_id = todo.user_id;
 
-    // cek dulu apakah share sudah ada
+    // Cek dulu apakah share sudah ada
     const { data: existing } = await supabase
       .from("shared_notes")
-      .select("shared_id")
+      .select("shared_id, access_type, permission, shared_to")
       .eq("todo_id", todo_id)
       .eq("owner_id", owner_id)
       .single();
 
     if (existing) {
+      // Return existing share dengan informasi lengkap
       return NextResponse.json({
         shared_id: existing.shared_id,
         share_url: `${req.nextUrl.origin}/shared/${existing.shared_id}`,
+        access_type: existing.access_type,
+        permission: existing.permission,
+        shared_to: existing.shared_to,
       });
     }
 
-    // insert baru kalau belum ada
+    // Validasi shared_to untuk invited access
+    if (access_type === "invited" && shared_to) {
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(shared_to)) {
+        return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
+      }
+    }
+
+    // Insert baru kalau belum ada
+    const insertData: any = { 
+      todo_id, 
+      owner_id, 
+      access_type, 
+      permission 
+    };
+
+    // Add shared_to only if provided and access_type is invited
+    if (access_type === "invited" && shared_to) {
+      insertData.shared_to = shared_to;
+    }
+
     const { data, error } = await supabase
       .from("shared_notes")
-      .insert([{ todo_id, owner_id, access_type, permission }])
+      .insert([insertData])
       .select()
       .single();
 
-    if (error || !data) return NextResponse.json({ error: error?.message || "Failed to create share" }, { status: 500 });
+    if (error || !data) {
+      console.error("Failed to create share:", error);
+      return NextResponse.json({ 
+        error: error?.message || "Failed to create share" 
+      }, { status: 500 });
+    }
 
     return NextResponse.json({
       shared_id: data.shared_id,
       share_url: `${req.nextUrl.origin}/shared/${data.shared_id}`,
+      access_type: data.access_type,
+      permission: data.permission,
+      shared_to: data.shared_to,
     }, { status: 201 });
 
   } catch (err) {
