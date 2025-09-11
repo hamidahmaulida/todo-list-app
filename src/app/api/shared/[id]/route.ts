@@ -25,6 +25,13 @@ export async function GET(
   try {
     const { id } = await context.params;
 
+    // Debug log untuk environment variables
+    console.log("ENV CHECK:", {
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? "✓ Set" : "✗ Missing",
+      serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? "✓ Set" : "✗ Missing", 
+      jwtSecret: process.env.JWT_SECRET ? "✓ Set" : "✗ Missing"
+    });
+
     const { data: sharedNote, error: sharedError } = await supabase
       .from("shared_notes")
       .select(`
@@ -40,6 +47,7 @@ export async function GET(
       .single();
 
     if (sharedError || !sharedNote) {
+      console.log("Shared note not found:", sharedError);
       return NextResponse.json({ error: "Shared note not found" }, { status: 404 });
     }
 
@@ -50,6 +58,7 @@ export async function GET(
       .single();
 
     if (todoError || !todo) {
+      console.log("Todo not found:", todoError);
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
 
@@ -60,18 +69,29 @@ export async function GET(
       .single();
 
     if (ownerError || !owner) {
+      console.log("Owner not found:", ownerError);
       return NextResponse.json({ error: "Owner not found" }, { status: 404 });
     }
 
+    // Get token and user_id (optional for public shares)
     const token = req.headers.get("authorization")?.replace("Bearer ", "");
     const user_id = token ? getUserIdFromToken(token) : null;
 
+    // **PERBAIKAN**: Cek authorization hanya untuk invited shares
     if (sharedNote.access_type === "invited") {
-      if (!user_id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      // Untuk invited shares, butuh authentication
+      if (!user_id) {
+        return NextResponse.json({ error: "Authentication required for invited shares" }, { status: 401 });
+      }
+      
+      // Cek apakah user adalah owner atau invited user
       if (sharedNote.owner_id !== user_id && sharedNote.shared_to !== user_id) {
         return NextResponse.json({ error: "Access denied" }, { status: 403 });
       }
     }
+    // Untuk public shares, tidak perlu authentication - langsung allow
+
+    console.log(`Shared note accessed: ${id}, type: ${sharedNote.access_type}, user: ${user_id || 'anonymous'}`);
 
     return NextResponse.json({
       shared_id: sharedNote.shared_id,
