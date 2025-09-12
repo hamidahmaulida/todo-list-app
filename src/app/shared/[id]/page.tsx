@@ -170,7 +170,7 @@ const SharedTaskPage = () => {
         <div className="mb-8">
           <button
             onClick={() => router.push('/')}
-            className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-6 transition-colors"
+            className="inline-flex items-center text-teal-600 hover:text-teal-700 mb-6 transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-1" />
             Kembali ke Beranda
@@ -199,7 +199,7 @@ const SharedTaskPage = () => {
             
             <button
               onClick={copyShareUrl}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Share2 className="w-4 h-4 mr-2" />
               Copy Link
@@ -284,12 +284,12 @@ const SharedTaskPage = () => {
         </div>
         
         {/* Call to Action */}
-        <div className="mt-8 text-center p-6 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl text-white">
+        <div className="mt-8 text-center p-6 bg-gradient-to-r from-teal-600 to-teal-800 rounded-2xl text-white">
           <h3 className="text-xl font-bold mb-2">Ingin membuat todo list sendiri?</h3>
           <p className="text-blue-100 mb-4">Mulai organisir tugas Anda dengan mudah!</p>
           <button
             onClick={() => router.push('/')}
-            className="inline-flex items-center px-6 py-3 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
+            className="inline-flex items-center px-6 py-3 bg-white text-teal-600 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
           >
             Mulai Sekarang
           </button>

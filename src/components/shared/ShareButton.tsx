@@ -221,7 +221,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
         onClick={() => setShowModal(true)}
         className={`px-4 py-2 rounded-lg border transition-colors text-sm font-medium ${
           shareData 
-            ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100" 
+            ? "bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-700 hover:text-white" 
             : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
         }`}
       >
@@ -264,7 +264,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
                 <button
                   onClick={handleInvite}
                   disabled={loading || (accessType === "invited" && !inviteEmail.trim())}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+                  className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm font-medium"
                 >
                   {loading ? "..." : shareData ? "Update" : "Invite"}
                 </button>
@@ -274,7 +274,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
               {shareData?.shared_to && (
                 <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                    <div className="w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
                       {shareData.shared_to.charAt(0).toUpperCase()}
                     </div>
                     <span className="text-sm text-gray-900">{shareData.shared_to}</span>
@@ -360,7 +360,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
                   <>
                     <button
                       onClick={handleCopyLink}
-                      className="flex items-center gap-2 px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded text-sm"
+                      className="flex items-center gap-2 px-3 py-1.5 text-teal-600 hover:bg-blue-50 rounded text-sm"
                     >
                       <FiCopy className="w-4 h-4" />
                       Copy link

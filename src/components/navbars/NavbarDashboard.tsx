@@ -1,8 +1,7 @@
 "use client";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FiUser, FiMenu } from "react-icons/fi";
+import { FiMenu } from "react-icons/fi";
 
 interface NavbarDashboardProps {
   user: { name: string; email: string };
@@ -13,10 +12,37 @@ export default function NavbarDashboard({ user, onToggleSidebar }: NavbarDashboa
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const handleSignOut = () => {
-    localStorage.removeItem("token");
-    sessionStorage.removeItem("token");
-    router.push("/login");
+  // Get initial from email
+  const getInitial = (email: string) => {
+    return email.charAt(0).toUpperCase();
+  };
+
+  const handleSignOut = async () => {
+    try {
+      // Clear tokens
+      localStorage.removeItem("token");
+      sessionStorage.removeItem("token");
+      
+      // Clear any other auth data if needed
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      
+      // Close dropdown
+      setDropdownOpen(false);
+      
+      // Redirect to login
+      router.push("/login");
+      
+      // Optional: force reload to clear any cached data
+      window.location.href = "/login";
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
+  const handleSettingsClick = () => {
+    setDropdownOpen(false);
+    router.push("/dashboard/settings");
   };
 
   return (
@@ -36,30 +62,42 @@ export default function NavbarDashboard({ user, onToggleSidebar }: NavbarDashboa
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="flex items-center gap-2 bg-green-100 px-3 py-1 rounded hover:bg-green-200 transition"
+          className="flex items-center justify-center w-10 h-10 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors duration-200 font-semibold text-lg"
         >
-          <FiUser className="w-5 h-5 text-green-800" />
-          <span className="font-medium text-green-800">{user.name}</span>
+          {getInitial(user.email)}
         </button>
 
         {dropdownOpen && (
-          <div className="absolute right-0 mt-2 w-48 bg-white shadow-md rounded border border-gray-200">
-            <div className="px-4 py-2 border-b border-gray-100 text-sm text-gray-700">
-              {user.email}
+          <>
+            {/* Backdrop to close dropdown when clicking outside */}
+            <div 
+              className="fixed inset-0 z-10" 
+              onClick={() => setDropdownOpen(false)}
+            />
+            
+            <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg border border-gray-200 z-20">
+              {/* User info section */}
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="text-sm font-medium text-gray-900">{user.email}</p>
+              </div>
+              
+              {/* Menu items */}
+              <div className="py-1">
+                <button
+                  onClick={handleSettingsClick}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-800 transition-colors duration-150"
+                >
+                  Settings
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors duration-150"
+                >
+                  Sign Out
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => router.push("/dashboard/settings")}
-              className="w-full text-left px-4 py-2 hover:bg-green-100 text-green-800"
-            >
-              Settings
-            </button>
-            <button
-              onClick={handleSignOut}
-              className="w-full text-left px-4 py-2 hover:bg-red-100 text-red-500"
-            >
-              Sign Out
-            </button>
-          </div>
+          </>
         )}
       </div>
     </nav>
