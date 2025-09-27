@@ -48,7 +48,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [showAccessDropdown, setShowAccessDropdown] = useState(false);
 
-  // 🔔 show success/error
+  // show success/error
   const showMessage = (msg: string, type: "success" | "error") => {
     if (type === "success") setSuccessMsg(msg);
     else setErrorMsg(msg);
@@ -59,7 +59,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
     }, 3000);
   };
 
-  // 📥 fetch share data
+  // fetch share data
   const fetchShares = useCallback(async () => {
     try {
       const res = await fetch("/api/shared/check", {
@@ -79,14 +79,14 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
     }
   }, [todo_id]);
 
-  // 🚀 load shares only when modal opened
+  // load shares only when modal opened
   useEffect(() => {
     if (showModal) {
       fetchShares();
     }
   }, [showModal, fetchShares]);
 
-  // 🖱 close modal/dropdown on outside click
+  // close modal/dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
@@ -106,7 +106,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
   const validateEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  // ➕ create share
+  // create share
   const createShare = async (invite?: PendingInvite) => {
     setLoading(true);
     try {
@@ -161,7 +161,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
     }
   };
 
-  // ✉️ pending invites
+  // pending invites
   const handleAddPending = () => {
     if (!inviteEmail.trim()) return;
     if (!validateEmail(inviteEmail))
@@ -182,7 +182,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
     setPendingInvites([]);
   };
 
-  // ❌ delete share
+  // delete share
   const handleDeleteShare = async (shared_id: string) => {
     if (!confirm("Stop sharing this task?")) return;
     setLoading(true);
@@ -203,15 +203,17 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
     }
   };
 
-  // 📋 copy link
+    // copy link
   const handleCopyLink = async () => {
-    let existing = shareData.find((s) => s.access_type === "public");
+    const existing = shareData.find((s) => s.access_type === "public");
     let url = existing?.share_url;
 
     if (!url) {
       const newShare = await createShare();
-      if (!newShare)
-        return showMessage("Failed to create share link", "error");
+      if (!newShare) {
+        showMessage("Failed to create share link", "error");
+        return;
+      }
       url = newShare.share_url;
     }
 

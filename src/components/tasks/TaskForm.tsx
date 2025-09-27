@@ -27,14 +27,15 @@ export default function TaskForm({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Sync initialData **hanya saat modal pertama dibuka atau data berubah**
+  // Sync initialData hanya saat modal pertama dibuka atau data berubah
   useEffect(() => {
-    if (initialData) {
-      setTitle(initialData.title ?? "");
-      setContent(initialData.content ?? "");
-      setTags(initialData.tags ?? []);
-    }
-  }, [initialData?.todo_id]); // dependency tetap
+  if (initialData) {
+    setTitle(initialData.title ?? "");
+    setContent(initialData.content ?? "");
+    setTags(initialData.tags ?? []);
+  }
+}, [initialData]);
+
 
   // Notify parent dengan useCallback agar tidak memicu loop
   const notifyParent = useCallback(() => {
@@ -139,7 +140,7 @@ export default function TaskForm({
                     className="px-2 py-1 flex items-center gap-1 text-sm text-blue-600 cursor-pointer hover:bg-blue-50"
                     onClick={() => handleAddTag(tagInput)}
                   >
-                    <FiPlus /> Create "{tagInput}"
+                    <FiPlus /> Create &quot;{tagInput}&quot;
                   </div>
                 )}
               </div>

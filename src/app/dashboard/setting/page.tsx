@@ -370,7 +370,7 @@ export default function SettingsPage() {
 
               <p className="text-gray-600 mb-6">
                 Are you sure you want to deactivate your account? You will be signed out 
-                and won't be able to access your data until you sign in again.
+                and won&apos;t  be able to access your data until you sign in again.
               </p>
 
               <div className="flex justify-end gap-3">
