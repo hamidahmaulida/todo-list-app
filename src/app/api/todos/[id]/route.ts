@@ -44,10 +44,11 @@ async function ensureUserExists(userId: string) {
 // =======================
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log("DELETE /api/todos/[id] - Start, ID:", params.id);
+    const { id: todoId } = await params;
+    console.log("DELETE /api/todos/[id] - Start, ID:", todoId);
     
     const { userId } = await auth();
     console.log("User ID:", userId);
@@ -59,7 +60,6 @@ export async function DELETE(
 
     await ensureUserExists(userId);
 
-    const todoId = params.id;
     if (!todoId) {
       console.log("Missing todo ID");
       return NextResponse.json({ error: "Invalid todo ID" }, { status: 400 });
@@ -120,10 +120,11 @@ export async function DELETE(
 // =======================
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log("PUT /api/todos/[id] - Start, ID:", params.id);
+    const { id: todoId } = await params;
+    console.log("PUT /api/todos/[id] - Start, ID:", todoId);
     
     const { userId } = await auth();
     console.log("User ID:", userId);
@@ -135,7 +136,6 @@ export async function PUT(
 
     await ensureUserExists(userId);
 
-    const todoId = params.id;
     if (!todoId) {
       console.log("Missing todo ID");
       return NextResponse.json({ error: "Invalid todo ID" }, { status: 400 });
