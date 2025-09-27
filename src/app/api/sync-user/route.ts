@@ -1,13 +1,30 @@
-// src/app/api/sync-user/route.ts
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE!
-);
+function getSupabase(): SupabaseClient | any {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("[SYNC-USER] Missing Supabase env variables!", {
+      NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
+      SUPABASE_SERVICE_ROLE: supabaseKey,
+    });
+
+    // Dummy client supaya build tetap aman
+    return {
+      from: () => ({
+        upsert: async () => ({ data: null, error: { message: "Supabase key missing" } }),
+      }),
+    } as any;
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 export async function POST(req: Request) {
+  const supabase = getSupabase(); // client siap dipakai
+
   let body: any;
   try {
     body = await req.json();
@@ -23,30 +40,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: "userId and email are required" }, { status: 400 });
   }
 
-  console.log("[SYNC-USER] Incoming request:", { userId, email, fullName, avatarUrl });
-
   try {
-    // 1️Cek dulu apakah user_id sudah ada
-    const { data: existingUser, error: selectError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("user_id", userId)
-      .limit(1)
-      .single();
-
-    if (selectError && selectError.code !== "PGRST116") { // single tidak menemukan row
-      console.error("[SYNC-USER] Error checking existing user:", selectError);
-      return NextResponse.json({ success: false, error: "Failed to check existing user", detail: selectError.message }, { status: 500 });
-    }
-
-    if (existingUser) {
-      console.log("[SYNC-USER] User exists, updating:", existingUser.user_id);
-    } else {
-      console.log("[SYNC-USER] User does not exist, will create new one");
-    }
-
-    // Upsert user
-    const { data, error: upsertError } = await supabase
+    const { data, error } = await supabase
       .from("users")
       .upsert({
         user_id: userId,
@@ -57,21 +52,16 @@ export async function POST(req: Request) {
       })
       .select();
 
-    if (upsertError) {
-      console.error("[SYNC-USER] Supabase upsert error:", upsertError);
-      return NextResponse.json({ success: false, error: "Failed to upsert user", detail: upsertError.message }, { status: 500 });
+    if (error) {
+      console.error("[SYNC-USER] Supabase upsert error:", error);
+      return NextResponse.json({ success: false, error: "Failed to upsert user", detail: error.message }, { status: 500 });
     }
 
     console.log("[SYNC-USER] Upsert successful:", data);
 
-    // Return debug info
     return NextResponse.json({
       success: true,
       user: data,
-      debug: {
-        incomingUserId: userId,
-        existsBeforeUpsert: !!existingUser,
-      },
       serverTime: new Date().toISOString(),
     });
   } catch (err: any) {
