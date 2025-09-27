@@ -8,12 +8,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { userId } = getAuth(req);
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const sharedId = params.id;
+    const { id: sharedId } = await params;
     const body = await req.json();
     const { title, content, priority, tags, completed, due_date, is_public } = body;
 
