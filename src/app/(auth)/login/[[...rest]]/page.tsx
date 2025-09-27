@@ -10,7 +10,7 @@ export default function LoginPage() {
           path="/login"
           routing="path"
           signUpUrl="/register"
-          afterSignInUrl="/dashboard"
+          fallbackRedirectUrl="/dashboard"
           appearance={{
             elements: {
               formButtonPrimary: "bg-[#0F766E] hover:bg-[#115E59] text-white",
