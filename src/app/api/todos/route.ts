@@ -243,7 +243,7 @@ export async function PUT(req: NextRequest) {
 
       for (const tagName of tags.map((t: string) => t.trim()).filter(Boolean)) {
         try {
-          let { data: existingTag, error: tagSelectError } = await supabase
+          const { data, error: tagSelectError } = await supabase
             .from("tags")
             .select("*")
             .eq("tag_name", tagName)
@@ -253,6 +253,8 @@ export async function PUT(req: NextRequest) {
           if (tagSelectError) {
             continue;
           }
+
+          let existingTag = data;
 
           if (!existingTag) {
             const { data: newTag, error: tagInsertError } = await supabase
