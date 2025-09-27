@@ -35,7 +35,7 @@ interface TodoWithExtras {
 // =========================
 // GET /api/todos
 // =========================
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth();
 
@@ -138,6 +138,10 @@ export async function POST(req: NextRequest) {
             .eq("user_id", userId)
             .maybeSingle();
 
+          if (tagSelectError) {
+            continue;
+          }
+
           let existingTag = data;
 
           if (!existingTag) {
@@ -151,7 +155,6 @@ export async function POST(req: NextRequest) {
               existingTag = newTag;
             }
           }
-
 
           if (existingTag) {
             await supabase.from("todo_tags").insert([
