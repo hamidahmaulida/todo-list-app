@@ -10,14 +10,14 @@ const supabase = createClient(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Ambil user dari Clerk
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const todoId = params.id;
+    const { id: todoId } = await params;
     if (!todoId) return NextResponse.json({ error: "Invalid todo ID" }, { status: 400 });
 
     // Restore todo di Supabase
