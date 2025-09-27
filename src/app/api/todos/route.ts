@@ -131,16 +131,14 @@ export async function POST(req: NextRequest) {
     if (tags && tags.length > 0) {
       for (const tagName of tags.map((t: string) => t.trim()).filter(Boolean)) {
         try {
-          let { data: existingTag, error: tagSelectError } = await supabase
+          const { data, error: tagSelectError } = await supabase
             .from("tags")
             .select("*")
             .eq("tag_name", tagName)
             .eq("user_id", userId)
             .maybeSingle();
 
-          if (tagSelectError) {
-            continue;
-          }
+          let existingTag = data;
 
           if (!existingTag) {
             const { data: newTag, error: tagInsertError } = await supabase
@@ -149,12 +147,11 @@ export async function POST(req: NextRequest) {
               .select()
               .single();
 
-            if (tagInsertError) {
-              continue;
+            if (!tagInsertError) {
+              existingTag = newTag;
             }
-
-            existingTag = newTag;
           }
+
 
           if (existingTag) {
             await supabase.from("todo_tags").insert([
