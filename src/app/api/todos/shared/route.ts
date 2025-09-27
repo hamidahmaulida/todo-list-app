@@ -61,7 +61,9 @@ export async function GET(req: NextRequest) {
           is_public
         )
       `)
+      .eq("status", "accepted")
       .eq("shared_to", userId);
+      
 
     console.log("Joined query result:");
     console.log("Data:", sharedData);

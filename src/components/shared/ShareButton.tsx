@@ -129,7 +129,7 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
         }
         payload.shared_email = emailToUse;
       }
-
+      console.log("Creating share with payload:", payload);
       const res = await fetch("/api/shared", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
