@@ -1,83 +1,94 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useUser } from "@clerk/nextjs";
+import { useEffect, useState, useCallback } from "react";
+import AuthGuard from "@/app/(auth)/AuthGuard";
 import TaskGrid from "@/components/tasks/TaskGrid";
 import TaskModal from "@/components/tasks/TaskModal";
 import { TodoWithExtras } from "@/types/task";
 
 export default function DashboardPage() {
-  const [tasks, setTasks] = useState<TodoWithExtras[]>([]);
+  const { user, isLoaded } = useUser();
+  const [ownTasks, setOwnTasks] = useState<TodoWithExtras[]>([]);
+  const [sharedTasks, setSharedTasks] = useState<TodoWithExtras[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [selectedTask, setSelectedTask] = useState<TodoWithExtras | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Ambil token dari localStorage / sessionStorage
-  const getToken = () =>
-    localStorage.getItem("token") || sessionStorage.getItem("token");
-
-  // Ambil current userId dari JWT
-  const getCurrentUserId = () => {
-    const token = getToken();
-    if (!token) return null;
+  // Fetch tasks (own + shared)
+  const fetchOwnTasks = useCallback(async () => {
+    if (!user) return;
     try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      return payload.userId;
-    } catch (err) {
-      console.error("Failed to parse token:", err);
-      return null;
-    }
-  };
-
-  const currentUserId = getCurrentUserId();
-
-  // Fetch tasks dari API - wrapped with useCallback
-  const fetchTasks = useCallback(async () => {
-    try {
-      const token = getToken();
-      if (!token) throw new Error("No token found");
-
-      const res = await fetch("/api/todos", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to fetch tasks");
-
+      const res = await fetch("/api/todos");
+      if (!res.ok) return;
       const data: TodoWithExtras[] = await res.json();
-
-      const tasksWithShared = data.map((t) => ({
-        ...t,
-        shared: t.shared || false,
-      }));
-
-      setTasks(tasksWithShared);
-
-      const uniqueTags = Array.from(
-        new Set(tasksWithShared.flatMap((t) => t.tags || []))
-      );
-      setTags(uniqueTags);
+      setOwnTasks(data);
     } catch (err) {
-      console.error("Failed to fetch tasks:", err);
+      console.error(err);
     }
-  }, []); // Empty dependency array since getToken is defined inside and doesn't depend on external values
+  }, [user]);
+
+  const fetchSharedTasks = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await fetch("/api/todos/shared");
+      if (!res.ok) return setSharedTasks([]);
+      const data: TodoWithExtras[] = await res.json();
+      setSharedTasks(data);
+    } catch (err) {
+      console.error(err);
+      setSharedTasks([]);
+    }
+  }, [user]);
+
+  const fetchTasks = useCallback(async () => {
+    if (!user) return;
+    await Promise.all([fetchOwnTasks(), fetchSharedTasks()]);
+  }, [fetchOwnTasks, fetchSharedTasks, user]);
 
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]); // Now fetchTasks is properly included in dependencies
+    if (isLoaded && user) fetchTasks();
+  }, [isLoaded, user, fetchTasks, refreshTrigger]);
+
+  // global refresh trigger
+  useEffect(() => {
+    (window as any).refreshDashboardTasks = () => {
+      setRefreshTrigger((prev) => prev + 1);
+    };
+    return () => {
+      delete (window as any).refreshDashboardTasks;
+    };
+  }, []);
+
+  // Update tags
+  useEffect(() => {
+    const allTasks = [...ownTasks, ...sharedTasks];
+    setTags(Array.from(new Set(allTasks.flatMap((t) => t.tags ?? []))));
+  }, [ownTasks, sharedTasks]);
 
   const handleTaskSaved = (savedTask: TodoWithExtras & { _deleted?: boolean }) => {
     if (savedTask._deleted) {
-      setTasks((prev) => prev.filter((t) => t.todo_id !== savedTask.todo_id));
-      return;
+      setOwnTasks((prev) => prev.filter((t) => t.todo_id !== savedTask.todo_id));
+      setSharedTasks((prev) => prev.filter((t) => t.todo_id !== savedTask.todo_id));
+    } else {
+      const isOwner = savedTask.user_id === user?.id;
+      if (isOwner) {
+        setOwnTasks((prev) => {
+          const exists = prev.some((t) => t.todo_id === savedTask.todo_id);
+          return exists
+            ? prev.map((t) => (t.todo_id === savedTask.todo_id ? savedTask : t))
+            : [savedTask, ...prev];
+        });
+      } else {
+        setSharedTasks((prev) => {
+          const exists = prev.some((t) => t.todo_id === savedTask.todo_id);
+          return exists
+            ? prev.map((t) => (t.todo_id === savedTask.todo_id ? savedTask : t))
+            : [savedTask, ...prev];
+        });
+      }
     }
-
-    setTasks((prev) => {
-      const exists = prev.some((t) => t.todo_id === savedTask.todo_id);
-      if (exists)
-        return prev.map((t) => (t.todo_id === savedTask.todo_id ? savedTask : t));
-      return [savedTask, ...prev];
-    });
-
-    setTags((prev) => Array.from(new Set([...prev, ...(savedTask.tags || [])])));
-    setSelectedTask(null);
     setIsModalOpen(false);
   };
 
@@ -86,40 +97,40 @@ export default function DashboardPage() {
     setIsModalOpen(true);
   };
 
+  const allTasks = [...ownTasks, ...sharedTasks];
   const filteredTasks = filterTag
-    ? tasks.filter((t) => t.tags?.includes(filterTag))
-    : tasks;
+    ? allTasks.filter((t) => t.tags?.includes(filterTag))
+    : allTasks;
 
   return (
-    <div className="flex relative">
-      <div className="flex-1">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-[#0F766E]">My Tasks</h1>
-        </div>
+    <AuthGuard>
+      <div className="pt-20 px-6 pb-24 max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold text-[#0F766E] mb-2">My Tasks</h1>
+        <p className="text-gray-600 mb-6">
+          Organize and manage your daily tasks efficiently
+        </p>
 
+        {/* Tag Filter */}
         {tags.length > 0 && (
-          <div className="flex gap-2 flex-wrap mb-4">
-            {/* All Tag */}
+          <div className="mb-6 flex gap-2 flex-wrap">
             <button
               onClick={() => setFilterTag(null)}
-              className={`px-3 py-1 rounded-full text-sm border ${
+              className={`px-4 py-2 rounded-full text-sm font-medium border ${
                 filterTag === null
-                  ? "bg-[#0F766E] text-white border-[#0F766E]"
-                  : "bg-[#D1FAE5] text-[#0F766E] border-[#0F766E]"
+                  ? "bg-[#0F766E] text-white border-[#0F766E] shadow-md"
+                  : "bg-white text-[#0F766E] border-[#0F766E] hover:bg-[#F0FDF4]"
               }`}
             >
               All
             </button>
-
-            {/* Other Tags */}
             {tags.map((tag) => (
               <button
                 key={tag}
                 onClick={() => setFilterTag(tag)}
-                className={`px-3 py-1 rounded-full text-sm border ${
+                className={`px-4 py-2 rounded-full text-sm font-medium border ${
                   filterTag === tag
-                    ? "bg-[#0F766E] text-white border-[#0F766E]"
-                    : "bg-[#D1FAE5] text-[#0F766E] border-[#0F766E]"
+                    ? "bg-[#0F766E] text-white border-[#0F766E] shadow-md"
+                    : "bg-white text-[#0F766E] border-[#0F766E] hover:bg-[#F0FDF4]"
                 }`}
               >
                 {tag}
@@ -128,33 +139,34 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Task Grid */}
         <TaskGrid tasks={filteredTasks} onSelect={openTaskModal} />
 
+        {/* Add Task Button */}
         <button
           onClick={() => openTaskModal()}
-          className="fixed bottom-6 right-6 bg-[#0F766E] text-white px-5 py-3 rounded-full shadow-lg hover:bg-[#115E59] transition"
+          className="fixed bottom-6 right-6 bg-[#0F766E] text-white px-6 py-4 rounded-full shadow-lg hover:bg-[#115E59] flex items-center gap-2 font-medium z-50"
         >
-          + New Task
+          <span className="text-lg">+</span>
+          <span className="hidden sm:inline">New Task</span>
         </button>
 
+        {/* Task Modal */}
         {isModalOpen && (
           <TaskModal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             onTaskSaved={handleTaskSaved}
             onTaskDeleted={(todo_id) =>
-              handleTaskSaved({ todo_id, _deleted: true } as TodoWithExtras & { _deleted: boolean })
+              handleTaskSaved({ todo_id, _deleted: true } as TodoWithExtras & {
+                _deleted: boolean;
+              })
             }
             initialData={selectedTask ?? undefined}
             existingTags={tags}
-            readOnly={
-              selectedTask
-                ? selectedTask.user_id !== currentUserId
-                : false
-            }
           />
         )}
       </div>
-    </div>
+    </AuthGuard>
   );
 }

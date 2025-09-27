@@ -1,148 +1,385 @@
-import { NextRequest, NextResponse } from "next/server"; 
+// src/app/api/todos/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
-import jwt from "jsonwebtoken";
-import { TodoWithExtras, SharedNote } from "@/types/task";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function getUserIdFromToken(token: string): string | null {
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
-    return payload.userId;
-  } catch (err) {
-    console.error("Invalid token:", err);
-    return null;
-  }
+// =========================
+// Tipe data
+// =========================
+interface TodoTag {
+  tag_id: string;
+  todo_id: string;
+  tags: {
+    tag_name: string;
+  } | null;
 }
 
-// Supabase row type
-interface SupabaseTodoRow {
+interface TodoWithExtras {
   todo_id: string;
+  user_id: string;
   title: string;
   content: string;
+  completed: boolean;
   created_at: string;
   updated_at: string;
-  user_id: string;
-  todo_tags?: { tags: { tag_name: string } }[];
-  shared_notes?: { shared_id: string; owner_id: string; shared_to: string | null; permission: "read" | "edit" }[];
+  deleted_at: string | null;
+  todo_tags?: TodoTag[];
+  tags?: string[];
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const userId = getUserIdFromToken(token);
-    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-
-    const body = await req.json();
-    const { title = "", content = "", tags = [] } = body;
-
-    // Validasi: minimal satu field harus ada (title, content, atau tags)
-    const hasTitle = title.trim();
-    const hasContent = content.trim();
-    const hasTags = tags && tags.length > 0;
-
-    if (!hasTitle && !hasContent && !hasTags) {
-      return NextResponse.json({ error: "Please fill at least one field: title, content, or tag" }, { status: 400 });
-    }
-
-    // Insert todo (title boleh kosong string)
-    const { data, error } = await supabase
-      .from("todos")
-      .insert([{ 
-        title: title || "", // title boleh string kosong
-        content: content || "", 
-        user_id: userId 
-      }])
-      .select()
-      .single();
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    // Handle tags jika ada
-    if (hasTags) {
-      // Insert tags yang belum ada
-      for (const tagName of tags) {
-        if (tagName.trim()) {
-          // Insert tag jika belum ada (ignore conflict)
-          await supabase
-            .from("tags")
-            .upsert({ tag_name: tagName.trim() }, { onConflict: "tag_name" });
-
-          // Link tag ke todo
-          const { data: tagData } = await supabase
-            .from("tags")
-            .select("tag_id")
-            .eq("tag_name", tagName.trim())
-            .single();
-
-          if (tagData) {
-            await supabase
-              .from("todo_tags")
-              .insert({ todo_id: data.todo_id, tag_id: tagData.tag_id });
-          }
-        }
-      }
-    }
-
-    return NextResponse.json(data);
-  } catch (err) {
-    console.error("POST /todos error:", err);
-    return NextResponse.json({ error: "Failed to create todo" }, { status: 500 });
-  }
-}
-
+// =========================
+// GET /api/todos
+// =========================
 export async function GET(req: NextRequest) {
   try {
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    console.log("GET /api/todos - Start");
+    
+    const { userId } = await auth();
+    console.log("User ID:", userId);
+    
+    if (!userId) {
+      console.log("Unauthorized - no userId");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    const userId = getUserIdFromToken(token);
-    if (!userId) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    console.log("Fetching todos from database...");
 
-    const { data: todos, error } = await supabase
+    const { data, error } = await supabase
       .from("todos")
       .select(`
         *,
         todo_tags (
-          tags(tag_name)
-        ),
-        shared_notes (
-          shared_id, owner_id, shared_to, permission
+          tag_id,
+          todo_id,
+          tags:tags (
+            tag_name
+          )
         )
       `)
       .eq("user_id", userId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error("Database error:", error);
+      throw error;
+    }
 
-    // Map ke TodoWithExtras
-    const todosWithExtras: TodoWithExtras[] = (todos as SupabaseTodoRow[]).map((t) => {
-      // Map shared_notes ke tipe SharedNote
-      const mappedSharedNotes: SharedNote[] | undefined = t.shared_notes?.map((s) => ({
-        shared_id: s.shared_id,
-        todo_id: t.todo_id,        // tambahkan todo_id
-        owner_id: s.owner_id,
-        shared_to: s.shared_to,
-        permission: s.permission,
-        access_type: "invited",    // default, bisa sesuaikan logic
-      }));
+    console.log(`Found ${data?.length || 0} todos`);
 
-      return {
-        ...t,
-        tags: t.todo_tags?.map((tt) => tt.tags.tag_name) || [],
-        shared: (t.shared_notes?.length ?? 0) > 0,
-        shared_notes: mappedSharedNotes,
-      };
-    });
+    const todos: TodoWithExtras[] = (data || []).map((todo) => ({
+      ...todo,
+      tags: (todo.todo_tags as TodoTag[] | undefined)
+        ?.map(tt => tt.tags?.tag_name)
+        .filter(Boolean) || [],
+      todo_tags: undefined
+    }));
 
-    return NextResponse.json(todosWithExtras);
-  } catch (err) {
+    console.log("GET /api/todos - Success");
+    return NextResponse.json(todos);
+    
+  } catch (err: any) {
     console.error("GET /todos error:", err);
-    return NextResponse.json({ error: "Failed to fetch todos" }, { status: 500 });
+    return NextResponse.json({ 
+      error: err?.message || "Internal server error",
+      details: err?.details || ""
+    }, { status: 500 });
+  }
+}
+
+// =========================
+// POST /api/todos
+// =========================
+export async function POST(req: NextRequest) {
+  try {
+    console.log("POST /api/todos - Start");
+    
+    const { userId } = await auth();
+    console.log("User ID:", userId);
+    
+    if (!userId) {
+      console.log("Unauthorized - no userId");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    console.log("Request body:", body);
+    
+    const { title = "", content = "", tags = [] } = body;
+
+    if (!title.trim() && !content.trim() && (!tags || tags.length === 0)) {
+      console.log("Validation failed - all fields empty");
+      return NextResponse.json({ error: "Please fill at least one field" }, { status: 400 });
+    }
+
+    console.log("Creating todo...");
+
+    // 1. Insert todo
+    const { data: todo, error: todoError } = await supabase
+      .from("todos")
+      .insert([{ 
+        title: title.trim(), 
+        content: content.trim(), 
+        user_id: userId, 
+        completed: false 
+      }])
+      .select()
+      .single();
+
+    if (todoError) {
+      console.error("Error creating todo:", todoError);
+      throw todoError;
+    }
+    
+    if (!todo) {
+      console.log("No todo returned after insert");
+      throw new Error("Failed to create todo");
+    }
+
+    console.log("Todo created:", todo.todo_id);
+
+    // 2. Process tags
+    if (tags && tags.length > 0) {
+      console.log(`Processing ${tags.length} tags...`);
+      
+      for (const tagName of tags.map((t: string) => t.trim()).filter(Boolean)) {
+        try {
+          console.log(`Processing tag: ${tagName}`);
+          
+          // Check existing tag
+          let { data: existingTag, error: tagSelectError } = await supabase
+            .from("tags")
+            .select("*")
+            .eq("tag_name", tagName)
+            .eq("user_id", userId)
+            .maybeSingle();
+
+          if (tagSelectError) {
+            console.error(`Error checking tag ${tagName}:`, tagSelectError);
+            continue;
+          }
+
+          if (!existingTag) {
+            console.log(`Creating new tag: ${tagName}`);
+            const { data: newTag, error: tagInsertError } = await supabase
+              .from("tags")
+              .insert([{ tag_name: tagName, user_id: userId }])
+              .select()
+              .single();
+              
+            if (tagInsertError) {
+              console.error(`Error creating tag ${tagName}:`, tagInsertError);
+              continue;
+            }
+            
+            existingTag = newTag;
+          }
+
+          if (existingTag) {
+            // Insert relation todo_tags
+            const { error: linkError } = await supabase
+              .from("todo_tags")
+              .insert([{ 
+                todo_id: todo.todo_id, 
+                tag_id: existingTag.tag_id 
+              }]);
+              
+            if (linkError) {
+              console.error(`Error linking tag ${tagName}:`, linkError);
+            } else {
+              console.log(`Tag ${tagName} linked successfully`);
+            }
+          }
+        } catch (tagError) {
+          console.error(`Error processing tag ${tagName}:`, tagError);
+        }
+      }
+    }
+
+    console.log("POST /api/todos - Success");
+    return NextResponse.json(todo, { status: 201 });
+    
+  } catch (err: any) {
+    console.error("POST /todos error:", err);
+    return NextResponse.json({ 
+      error: err?.message || "Internal server error",
+      details: err?.details || ""
+    }, { status: 500 });
+  }
+}
+
+// =========================
+// PUT /api/todos (for updates without ID in URL)
+// =========================
+export async function PUT(req: NextRequest) {
+  try {
+    console.log("PUT /api/todos - Start");
+    
+    const { userId } = await auth();
+    console.log("User ID:", userId);
+    
+    if (!userId) {
+      console.log("Unauthorized - no userId");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    console.log("Request body:", body);
+    
+    const { todo_id, title, content, tags, completed, due_date, priority } = body;
+
+    if (!todo_id) {
+      console.log("Missing todo_id");
+      return NextResponse.json({ error: "todo_id is required" }, { status: 400 });
+    }
+
+    console.log("Checking todo ownership...");
+
+    // Check if todo exists and belongs to user
+    const { data: existing, error: fetchError } = await supabase
+      .from("todos")
+      .select("*")
+      .eq("todo_id", todo_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error("Error checking todo:", fetchError);
+      return NextResponse.json({ error: "Database error" }, { status: 500 });
+    }
+
+    if (!existing) {
+      console.log("Todo not found or access denied");
+      return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+    }
+
+    console.log("Updating todo...");
+
+    // Update todo
+    const { error: updateError } = await supabase
+      .from("todos")
+      .update({
+        title: title !== undefined ? title.trim() : existing.title,
+        content: content !== undefined ? content.trim() : existing.content,
+        completed: completed !== undefined ? completed : existing.completed,
+        due_date: due_date !== undefined ? due_date : existing.due_date,
+        priority: priority !== undefined ? priority : existing.priority,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("todo_id", todo_id);
+
+    if (updateError) {
+      console.error("Error updating todo:", updateError);
+      return NextResponse.json({ error: "Failed to update todo" }, { status: 500 });
+    }
+
+    console.log("Todo updated successfully");
+
+    // Handle tags if provided
+    if (Array.isArray(tags)) {
+      console.log("Processing tags...");
+      
+      // Clear existing tags
+      await supabase.from("todo_tags").delete().eq("todo_id", todo_id);
+
+      for (const tagName of tags.map((t: string) => t.trim()).filter(Boolean)) {
+        try {
+          console.log(`Processing tag: ${tagName}`);
+          
+          // Check existing tag
+          let { data: existingTag, error: tagSelectError } = await supabase
+            .from("tags")
+            .select("*")
+            .eq("tag_name", tagName)
+            .eq("user_id", userId)
+            .maybeSingle();
+
+          if (tagSelectError) {
+            console.error(`Error checking tag ${tagName}:`, tagSelectError);
+            continue;
+          }
+
+          if (!existingTag) {
+            console.log(`Creating new tag: ${tagName}`);
+            const { data: newTag, error: tagInsertError } = await supabase
+              .from("tags")
+              .insert([{ tag_name: tagName, user_id: userId }])
+              .select()
+              .single();
+              
+            if (tagInsertError) {
+              console.error(`Error creating tag ${tagName}:`, tagInsertError);
+              continue;
+            }
+            
+            existingTag = newTag;
+          }
+
+          if (existingTag) {
+            // Insert relation todo_tags
+            const { error: linkError } = await supabase
+              .from("todo_tags")
+              .insert([{ 
+                todo_id: todo_id, 
+                tag_id: existingTag.tag_id 
+              }]);
+              
+            if (linkError) {
+              console.error(`Error linking tag ${tagName}:`, linkError);
+            } else {
+              console.log(`Tag ${tagName} linked successfully`);
+            }
+          }
+        } catch (tagError) {
+          console.error(`Error processing tag ${tagName}:`, tagError);
+        }
+      }
+    }
+
+    // Fetch updated todo with tags
+    console.log("Fetching updated todo...");
+    
+    const { data: updatedTodo, error: finalFetchError } = await supabase
+      .from("todos")
+      .select(`
+        *,
+        todo_tags (
+          tag_id,
+          todo_id,
+          tags:tags (
+            tag_name
+          )
+        )
+      `)
+      .eq("todo_id", todo_id)
+      .single();
+
+    if (finalFetchError) {
+      console.error("Error fetching updated todo:", finalFetchError);
+      return NextResponse.json({ error: "Failed to fetch updated todo" }, { status: 500 });
+    }
+
+    const todoResponse: TodoWithExtras = {
+      ...updatedTodo,
+      tags: (updatedTodo.todo_tags as TodoTag[] | undefined)
+        ?.map(tt => tt.tags?.tag_name)
+        .filter(Boolean) || [],
+      todo_tags: undefined
+    };
+
+    console.log("PUT /api/todos - Success");
+    return NextResponse.json(todoResponse);
+    
+  } catch (err: any) {
+    console.error("PUT /todos error:", err);
+    return NextResponse.json({ 
+      error: err?.message || "Internal server error",
+      details: err?.details || ""
+    }, { status: 500 });
   }
 }

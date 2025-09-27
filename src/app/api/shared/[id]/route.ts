@@ -1,115 +1,57 @@
-// src/app/api/shared/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import jwt from "jsonwebtoken";
+import { auth } from "@clerk/nextjs/server"; 
+import { v4 as uuidv4 } from "uuid";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function getUserIdFromToken(token: string): string | null {
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { user_id: string };
-    return payload.user_id;
-  } catch {
-    return null;
-  }
-}
-
 // ------------------- GET -------------------
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params;
-
-    // Debug log untuk environment variables
-    console.log("ENV CHECK:", {
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? "✓ Set" : "✗ Missing",
-      serviceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? "✓ Set" : "✗ Missing", 
-      jwtSecret: process.env.JWT_SECRET ? "✓ Set" : "✗ Missing"
-    });
+    const { id } = params;
+    if (!id) return NextResponse.json({ error: "Missing shared ID" }, { status: 400 });
 
     const { data: sharedNote, error: sharedError } = await supabase
       .from("shared_notes")
-      .select(`
-        shared_id,
-        todo_id,
-        owner_id,
-        access_type,
-        permission,
-        shared_to,
-        created_at
-      `)
+      .select("*")
       .eq("shared_id", id)
-      .single();
+      .maybeSingle();
 
-    if (sharedError || !sharedNote) {
-      console.log("Shared note not found:", sharedError);
-      return NextResponse.json({ error: "Shared note not found" }, { status: 404 });
+    if (sharedError) return NextResponse.json({ error: sharedError.message }, { status: 500 });
+    if (!sharedNote) return NextResponse.json({ error: "Shared note not found" }, { status: 404 });
+
+    // Jika private, cek token
+    if (sharedNote.access_type === "private") {
+      const token = req.nextUrl.searchParams.get("token");
+      if (!token || token !== sharedNote.invitation_token) {
+        return NextResponse.json({ error: "Unauthorized access to private share" }, { status: 401 });
+      }
     }
 
-    const { data: todo, error: todoError } = await supabase
+    const { data: todo } = await supabase
       .from("todos")
       .select("todo_id, title, content, created_at, updated_at, user_id")
       .eq("todo_id", sharedNote.todo_id)
-      .single();
+      .maybeSingle();
 
-    if (todoError || !todo) {
-      console.log("Todo not found:", todoError);
-      return NextResponse.json({ error: "Todo not found" }, { status: 404 });
-    }
-
-    const { data: owner, error: ownerError } = await supabase
+    const { data: owner } = await supabase
       .from("users")
-      .select("user_id, email")
+      .select("user_id, email, full_name")
       .eq("user_id", sharedNote.owner_id)
-      .single();
-
-    if (ownerError || !owner) {
-      console.log("Owner not found:", ownerError);
-      return NextResponse.json({ error: "Owner not found" }, { status: 404 });
-    }
-
-    // Get token and user_id (optional for public shares)
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    const user_id = token ? getUserIdFromToken(token) : null;
-
-    // **PERBAIKAN**: Handle invalid invited shares
-    if (sharedNote.access_type === "invited") {
-      // Jika invited tapi shared_to NULL, treat as public
-      if (!sharedNote.shared_to) {
-        console.log("Invalid invited share (no shared_to), treating as public");
-      } else {
-        // Untuk invited shares dengan shared_to, butuh authentication
-        if (!user_id) {
-          return NextResponse.json({ error: "Authentication required for invited shares" }, { status: 401 });
-        }
-        
-        // Cek apakah user adalah owner atau invited user
-        if (sharedNote.owner_id !== user_id && sharedNote.shared_to !== user_id) {
-          return NextResponse.json({ error: "Access denied" }, { status: 403 });
-        }
-      }
-    }
-    // Untuk public shares atau invalid invited shares, tidak perlu authentication
-
-    console.log(`Shared note accessed: ${id}, type: ${sharedNote.access_type}, user: ${user_id || 'anonymous'}`);
+      .maybeSingle();
 
     return NextResponse.json({
-      shared_id: sharedNote.shared_id,
-      access_type: sharedNote.access_type,
-      permission: sharedNote.permission,
-      task: {
-        todo_id: todo.todo_id,
-        title: todo.title,
-        content: todo.content,
-        created_at: todo.created_at,
-        updated_at: todo.updated_at,
-        user: owner,
-      },
+      ...sharedNote,
+      task: todo ? {
+        ...todo,
+        user: owner || null,
+      } : null,
     });
   } catch (err) {
     console.error("GET /shared/[id] error:", err);
@@ -120,40 +62,119 @@ export async function GET(
 // ------------------- PUT -------------------
 export async function PUT(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params;
+    const { id } = params;
+    if (!id) return NextResponse.json({ error: "Missing shared ID" }, { status: 400 });
 
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const user_id = getUserIdFromToken(token);
-    if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const { access_type, permission, shared_to } = body;
+    const { action, access_type, permission, shared_email } = body;
 
-    const validAccess = ["public", "invited"];
-    const validPermission = ["read", "edit", "viewer"];
+    const { data: sharedNote } = await supabase
+      .from("shared_notes")
+      .select("*")
+      .eq("shared_id", id)
+      .maybeSingle();
 
-    if (access_type && !validAccess.includes(access_type)) {
-      return NextResponse.json({ error: "Invalid access_type" }, { status: 400 });
-    }
-    if (permission && !validPermission.includes(permission)) {
-      return NextResponse.json({ error: "Invalid permission" }, { status: 400 });
+    if (!sharedNote) return NextResponse.json({ error: "Shared note not found" }, { status: 404 });
+
+    const updateData: any = {};
+    let needNotification = false;
+
+    // Accept / Reject
+    if (action === "accept") {
+      if (sharedNote.shared_to !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      updateData.status = "accepted";
+      updateData.accepted_at = new Date().toISOString();
+      needNotification = true;
+    } else if (action === "reject") {
+      if (sharedNote.shared_to !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      updateData.status = "rejected";
+      updateData.accepted_at = null;
+      needNotification = true;
+    } else {
+      // Owner update
+      if (sharedNote.owner_id !== userId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      if (access_type && !["public", "private"].includes(access_type))
+        return NextResponse.json({ error: "Invalid access_type" }, { status: 400 });
+      if (permission && !["view", "edit", "comment"].includes(permission))
+        return NextResponse.json({ error: "Invalid permission" }, { status: 400 });
+
+      if (access_type) updateData.access_type = access_type;
+      if (permission) updateData.permission = permission;
+
+      if (access_type === "public") {
+        updateData.shared_email = null;
+        updateData.shared_to = null;
+        updateData.invitation_token = null;
+      } else if (access_type === "private" && shared_email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(shared_email)) return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+
+        const { data: user } = await supabase
+          .from("users")
+          .select("user_id")
+          .eq("email", shared_email)
+          .maybeSingle();
+
+        updateData.shared_email = shared_email;
+        updateData.shared_to = user?.user_id || null;
+        updateData.invitation_token = uuidv4(); // regenerate token kalau email ganti
+      }
     }
 
     const { data, error } = await supabase
       .from("shared_notes")
-      .update({ access_type, permission, shared_to })
+      .update(updateData)
       .eq("shared_id", id)
-      .eq("owner_id", user_id)
       .select()
-      .single();
+      .maybeSingle();
 
-    if (error || !data)
-      return NextResponse.json({ error: error?.message || "Failed to update" }, { status: 400 });
+    if (error) return NextResponse.json({ error: error.message || "Update failed" }, { status: 500 });
+
+    // ===== Notifikasi =====
+    if (needNotification) {
+      try {
+        const { data: actor } = await supabase
+          .from("users")
+          .select("full_name, email")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        const notifTarget = action === "accept" || action === "reject"
+          ? sharedNote.owner_id
+          : sharedNote.shared_to;
+
+        if (notifTarget) {
+          await supabase.from("notifications").insert({
+            notification_id: uuidv4(),
+            user_id: notifTarget,
+            type: "task_share_update",
+            title: "Task Share Updated",
+            message: `${
+              actor?.full_name || actor?.email || "Someone"
+            } ${action === "accept" ? "accepted" : "rejected"} a shared task`,
+            data: {
+              shared_id: data?.shared_id,
+              todo_id: data?.todo_id,
+              owner_id: sharedNote.owner_id,
+              status: data?.status,
+              permission: data?.permission,
+            },
+            is_read: false,
+          });
+        }
+      } catch (notifError) {
+        console.error("[ERROR] Notification failed:", notifError);
+      }
+    }
 
     return NextResponse.json(data);
   } catch (err) {
@@ -165,27 +186,25 @@ export async function PUT(
 // ------------------- DELETE -------------------
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = await context.params;
+    const { id } = params;
+    if (!id) return NextResponse.json({ error: "Missing shared ID" }, { status: 400 });
 
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const user_id = getUserIdFromToken(token);
-    if (!user_id) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { data, error } = await supabase
       .from("shared_notes")
       .delete()
       .eq("shared_id", id)
-      .eq("owner_id", user_id)
+      .eq("owner_id", userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (!data) return NextResponse.json({ error: "Shared note not found" }, { status: 404 });
+    if (!data) return NextResponse.json({ error: "Shared note not found or permission denied" }, { status: 404 });
 
     return NextResponse.json({ message: "Successfully unshared", shared_id: id });
   } catch (err) {

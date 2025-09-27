@@ -7,12 +7,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model users {
+  user_id         String          @id @db.VarChar(191)
+  email           String          @unique @db.VarChar(100)
+  created_at      DateTime?       @default(now()) @db.Timestamptz(6)
+  deleted_at      DateTime?       @db.Timestamptz(6)
+  avatar_url      String?         @db.VarChar(255)
+  full_name       String?         @db.VarChar(100)
+  updated_at      DateTime?       @default(now()) @updatedAt @db.Timestamptz(6)
+  notifications   notifications[]
+  owned_shares    shared_notes[]  @relation("OwnerRelation")
+  received_shares shared_notes[]  @relation("SharedToUser")
+  tags            tags[]
+  todos           todos[]
+}
+
 model tags {
-  tag_id    String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id   String      @db.Uuid
-  tag_name  String      @db.VarChar(50)
-  users     users       @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
-  todo_tags todo_tags[]
+  tag_id     String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String      @db.VarChar(191)
+  tag_name   String      @db.VarChar(50)
+  color      String?     @default("#f0b00f") @db.VarChar(7)
+  created_at DateTime?   @default(now()) @db.Timestamptz(6)
+  users      users       @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  todo_tags  todo_tags[]
 
   @@unique([user_id, tag_name])
 }
@@ -28,41 +45,91 @@ model todo_tags {
 
 model todos {
   todo_id      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id      String         @db.Uuid
-  title        String?        @db.VarChar(100)
+  user_id      String         @db.VarChar(191)
+  title        String?        @db.VarChar(255)
   content      String?
   created_at   DateTime?      @default(now()) @db.Timestamptz(6)
   updated_at   DateTime?      @default(now()) @updatedAt @db.Timestamptz(6)
+  deleted_at   DateTime?      @db.Timestamptz(6)
+  completed    Boolean        @default(false)
+  due_date     DateTime?      @db.Timestamptz(6)
+  is_public    Boolean        @default(false)
+  shared_with  String[]       @default([])
+  priority     Priority       @default(medium)
   shared_notes shared_notes[]
   todo_tags    todo_tags[]
   users        users          @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
-}
 
-model users {
-  user_id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email             String         @unique @db.VarChar(100)
-  password_hash     String         @db.VarChar(255)
-  created_at        DateTime?      @default(now()) @db.Timestamp(6)
-  // Relations
-  owned_shares      shared_notes[] @relation("OwnerRelation")
-  received_shares   shared_notes[] @relation("SharedToUser")
-  tags              tags[]
-  todos             todos[]
+  @@index([user_id, deleted_at])
+  @@index([user_id, completed])
+  @@index([is_public])
 }
 
 model shared_notes {
-  shared_id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  todo_id         String   @db.Uuid
-  owner_id        String   @db.Uuid
-  shared_to       String?  @db.Uuid
-  permission      String   @default("read")
-  access_type     String   @default("public") // "public" | "invited"
-  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  shared_id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  todo_id          String      @db.Uuid
+  owner_id         String      @db.VarChar(191)
+  shared_to        String?     @db.VarChar(191)
+  created_at       DateTime?   @default(now()) @db.Timestamptz(6)
+  expires_at       DateTime?   @db.Timestamptz(6)
+  accepted_at      DateTime?   @db.Timestamptz(6)
+  invitation_token String?     @unique @db.VarChar(100)
+  shared_email     String?     @db.VarChar(100)
+  access_type      AccessType  @default(private)
+  permission       Permission  @default(view)
+  status           ShareStatus @default(pending)
+  owner            users       @relation("OwnerRelation", fields: [owner_id], references: [user_id], onDelete: Cascade)
+  shared_to_user   users?      @relation("SharedToUser", fields: [shared_to], references: [user_id], onDelete: Cascade)
+  todos            todos       @relation(fields: [todo_id], references: [todo_id], onDelete: Cascade)
 
-  // Relations
-  owner           users    @relation("OwnerRelation", fields: [owner_id], references: [user_id], onDelete: Cascade)
-  shared_to_user  users?   @relation("SharedToUser", fields: [shared_to], references: [user_id], onDelete: Cascade)
-  todos           todos    @relation(fields: [todo_id], references: [todo_id], onDelete: Cascade)
+  @@index([todo_id, shared_to])
+  @@index([owner_id])
+  @@index([shared_to])
+  @@index([shared_email])
+  @@index([invitation_token])
+  @@index([access_type])
+}
 
-  @@unique([todo_id, shared_to])
+model notifications {
+  notification_id String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String           @db.VarChar(191)
+  title           String           @db.VarChar(255)
+  message         String?
+  data            Json?
+  is_read         Boolean          @default(false)
+  created_at      DateTime         @default(now()) @db.Timestamptz(6)
+  type            NotificationType
+  users           users            @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id, is_read])
+}
+
+enum Permission {
+  view
+  edit
+  comment
+}
+
+enum AccessType {
+  public
+  private
+}
+
+enum ShareStatus {
+  pending
+  accepted
+  rejected
+}
+
+enum Priority {
+  low
+  medium
+  high
+}
+
+enum NotificationType {
+  task_shared
+  share_accepted
+  share_rejected
+  share_updated
 }

@@ -1,10 +1,9 @@
 "use client";
-// Fix import - ganti Task dengan TodoWithExtras
+
 import { TodoWithExtras } from "@/types/task";
 import { formatDate } from "@/lib/formatDate";
 
 interface TaskGridProps {
-  // Ganti Task dengan TodoWithExtras
   tasks: TodoWithExtras[];
   onSelect: (task: TodoWithExtras) => void;
 }
@@ -21,16 +20,11 @@ export default function TaskGrid({ tasks, onSelect }: TaskGridProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       {tasks.map((task) => {
-        const hasTitle = !!task.title?.trim();
-        const hasContent = !!task.content?.trim();
+        const titleText = task.title?.trim();
+        const contentText = task.content?.trim();
 
-        const displayTitle = hasTitle
-          ? task.title
-          : hasContent
-          ? task.content?.substring(0, 50)
-          : "Untitled";
-
-        const displayContent = hasTitle && hasContent ? task.content : "";
+        const displayTitle = titleText || contentText?.substring(0, 50) || "Untitled";
+        const displayContent = titleText && contentText ? contentText : "";
 
         const formattedDateTime = formatDate(task.updated_at || task.created_at);
 
@@ -40,7 +34,6 @@ export default function TaskGrid({ tasks, onSelect }: TaskGridProps) {
             onClick={() => onSelect(task)}
             className="relative bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-xl hover:scale-105 transform transition-all flex flex-col"
           >
-
             <h3 className="font-bold text-lg mb-1 text-gray-900 truncate">
               {displayTitle}
             </h3>
@@ -51,9 +44,9 @@ export default function TaskGrid({ tasks, onSelect }: TaskGridProps) {
               </p>
             )}
 
-            {(task.tags ?? []).length > 0 && (
+            {task.tags?.length ? (
               <div className="flex flex-wrap gap-2 mt-2">
-                {task.tags?.map((tag) => (
+                {task.tags.map((tag) => (
                   <span
                     key={tag}
                     className="bg-[#0F766E] text-white px-2 py-1 rounded-full text-xs"
@@ -62,7 +55,7 @@ export default function TaskGrid({ tasks, onSelect }: TaskGridProps) {
                   </span>
                 ))}
               </div>
-            )}
+            ) : null}
 
             <span className="text-xs text-gray-500 mt-2">
               {formattedDateTime}

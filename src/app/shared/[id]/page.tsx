@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { CheckCircle2, AlertCircle, ArrowLeft, Eye, Edit3, Lock, Share2 } from 'lucide-react';
-// REMOVED: Clock import since it's not being used
 
 interface Task {
   todo_id: string;
@@ -11,16 +10,17 @@ interface Task {
   content: string;
   created_at: string;
   updated_at: string;
-  user: {
+  user?: {
     user_id: string;
-    email: string;
+    email?: string;
+    full_name?: string;
   };
 }
 
 interface SharedData {
   shared_id: string;
-  access_type: 'public' | 'invited';
-  permission: 'read' | 'edit' | 'viewer';
+  access_type: 'public' | 'private';
+  permission: 'view' | 'edit' | 'comment';
   task: Task;
 }
 
@@ -28,47 +28,31 @@ const SharedTaskPage = () => {
   const params = useParams();
   const router = useRouter();
   const shareId = params.id as string;
-  
+
   const [data, setData] = useState<SharedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // FIXED: Wrapped fetchSharedTask with useCallback
+  const [copySuccess, setCopySuccess] = useState(false);
+
   const fetchSharedTask = useCallback(async () => {
     if (!shareId) return;
-    
+
     try {
       setLoading(true);
-      
-      // Ambil token dari localStorage jika ada (untuk invited shares)
+
       const token = localStorage.getItem('token');
-      
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(`/api/shared/${shareId}`, {
-        method: 'GET',
-        headers,
-      });
-      
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(`/api/shared/${shareId}`, { method: 'GET', headers });
       if (!response.ok) {
-        if (response.status === 404) {
-          setError('Task tidak ditemukan atau sudah tidak dibagikan');
-        } else if (response.status === 403) {
-          setError('Anda tidak memiliki akses ke task ini');
-        } else if (response.status === 401) {
-          setError('Silakan login untuk mengakses task ini');
-        } else {
-          setError('Gagal memuat task');
-        }
+        if (response.status === 404) setError('Task tidak ditemukan atau sudah tidak dibagikan');
+        else if (response.status === 403) setError('Anda tidak memiliki akses ke task ini');
+        else if (response.status === 401) setError('Silakan login untuk mengakses task ini');
+        else setError('Gagal memuat task');
         return;
       }
-      
+
       const result = await response.json();
       setData(result);
     } catch (err) {
@@ -77,50 +61,44 @@ const SharedTaskPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [shareId]); // shareId is the only dependency
-  
-  // FIXED: Added fetchSharedTask to dependency array
-  useEffect(() => {
-    fetchSharedTask();
-  }, [fetchSharedTask]);
-  
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('id-ID', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+  }, [shareId]);
+
+  useEffect(() => { fetchSharedTask(); }, [fetchSharedTask]);
+
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleDateString('id-ID', {
+      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
-  };
-  
+
   const getPermissionIcon = (permission: string) => {
     switch (permission) {
       case 'edit': return <Edit3 className="w-4 h-4" />;
-      case 'viewer': return <Eye className="w-4 h-4" />;
-      case 'read': return <Lock className="w-4 h-4" />;
+      case 'view': return <Eye className="w-4 h-4" />;
+      case 'comment': return <Lock className="w-4 h-4" />;
       default: return <Eye className="w-4 h-4" />;
     }
   };
-  
+
   const getPermissionText = (permission: string) => {
     switch (permission) {
       case 'edit': return 'Dapat Edit';
-      case 'viewer': return 'Dapat Lihat';
-      case 'read': return 'Hanya Baca';
-      default: return 'Hanya Baca';
+      case 'view': return 'Dapat Lihat';
+      case 'comment': return 'Dapat Comment';
+      default: return 'Dapat Lihat';
     }
   };
-  
+
   const copyShareUrl = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      alert('Link berhasil disalin!');
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
+      alert('Gagal menyalin link. Salin manual dari address bar.');
     }
   };
-  
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -131,7 +109,7 @@ const SharedTaskPage = () => {
       </div>
     );
   }
-  
+
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center">
@@ -144,8 +122,7 @@ const SharedTaskPage = () => {
               onClick={() => router.push('/')}
               className="w-full inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Kembali ke Beranda
+              <ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Beranda
             </button>
             {error === 'Silakan login untuk mengakses task ini' && (
               <button
@@ -160,53 +137,29 @@ const SharedTaskPage = () => {
       </div>
     );
   }
-  
+
   if (!data) return null;
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <div className="max-w-4xl mx-auto py-8 px-4">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8 flex flex-wrap items-center justify-between">
           <button
             onClick={() => router.push('/')}
-            className="inline-flex items-center text-teal-600 hover:text-teal-700 mb-6 transition-colors"
+            className="inline-flex items-center text-teal-600 hover:text-teal-700 mb-4 transition-colors"
           >
-            <ArrowLeft className="w-4 h-4 mr-1" />
-            Kembali ke Beranda
+            <ArrowLeft className="w-4 h-4 mr-1" /> Kembali ke Beranda
           </button>
-          
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
-                {getPermissionIcon(data.permission)}
-                <span>{getPermissionText(data.permission)}</span>
-                {data.access_type === 'public' && (
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                    Public
-                  </span>
-                )}
-                {data.access_type === 'invited' && (
-                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                    Private
-                  </span>
-                )}
-              </div>
-              
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Shared Task</h1>
-              <p className="text-gray-600">Dibagikan oleh {data.task.user.email}</p>
-            </div>
-            
-            <button
-              onClick={copyShareUrl}
-              className="inline-flex items-center px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Share2 className="w-4 h-4 mr-2" />
-              Copy Link
-            </button>
-          </div>
+
+          <button
+            onClick={copyShareUrl}
+            className="inline-flex items-center px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Share2 className="w-4 h-4 mr-2" /> {copySuccess ? 'Berhasil Disalin!' : 'Copy Link'}
+          </button>
         </div>
-        
+
         {/* Task Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
           {/* Task Header */}
@@ -216,23 +169,14 @@ const SharedTaskPage = () => {
                 <CheckCircle2 className="w-6 h-6 text-blue-600" />
               </div>
               <div className="flex-1">
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                  {data.task.title}
-                </h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-3">{data.task.title || 'Task tidak tersedia'}</h2>
                 {data.task.content && (
-                  <div className="prose max-w-none">
-                    <div 
-                      className="text-gray-700 leading-relaxed whitespace-pre-wrap"
-                      dangerouslySetInnerHTML={{ 
-                        __html: data.task.content.replace(/\n/g, '<br>') 
-                      }}
-                    />
-                  </div>
+                  <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">{data.task.content}</div>
                 )}
               </div>
             </div>
           </div>
-          
+
           {/* Task Details */}
           <div className="p-8 bg-gray-50">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -241,16 +185,12 @@ const SharedTaskPage = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b border-gray-200">
                     <span className="text-gray-600 font-medium">Task ID:</span>
-                    <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-                      {data.task.todo_id}
-                    </span>
+                    <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{data.task.todo_id}</span>
                   </div>
-                  
                   <div className="flex justify-between items-center py-2 border-b border-gray-200">
                     <span className="text-gray-600 font-medium">Dibuat:</span>
                     <span className="text-gray-900">{formatDate(data.task.created_at)}</span>
                   </div>
-                  
                   {data.task.updated_at !== data.task.created_at && (
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
                       <span className="text-gray-600 font-medium">Terakhir Update:</span>
@@ -259,20 +199,18 @@ const SharedTaskPage = () => {
                   )}
                 </div>
               </div>
-              
+
               <div className="space-y-4">
                 <h3 className="font-semibold text-gray-900 text-lg mb-4">Sharing Info</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-2 border-b border-gray-200">
                     <span className="text-gray-600 font-medium">Dibagikan Oleh:</span>
-                    <span className="text-gray-900">{data.task.user.email}</span>
+                    <span className="text-gray-900">{data.task.user?.full_name || data.task.user?.email || 'Unknown'}</span>
                   </div>
-                  
                   <div className="flex justify-between items-center py-2 border-b border-gray-200">
                     <span className="text-gray-600 font-medium">Tipe Akses:</span>
                     <span className="text-gray-900 capitalize">{data.access_type}</span>
                   </div>
-                  
                   <div className="flex justify-between items-center py-2 border-b border-gray-200">
                     <span className="text-gray-600 font-medium">Permission:</span>
                     <span className="text-gray-900">{getPermissionText(data.permission)}</span>
@@ -282,8 +220,8 @@ const SharedTaskPage = () => {
             </div>
           </div>
         </div>
-        
-        {/* Call to Action */}
+
+        {/* CTA */}
         <div className="mt-8 text-center p-6 bg-gradient-to-r from-teal-600 to-teal-800 rounded-2xl text-white">
           <h3 className="text-xl font-bold mb-2">Ingin membuat todo list sendiri?</h3>
           <p className="text-blue-100 mb-4">Mulai organisir tugas Anda dengan mudah!</p>

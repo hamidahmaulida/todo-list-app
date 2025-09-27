@@ -1,6 +1,18 @@
 "use client";
+
 import { useState, useRef, useEffect, useCallback } from "react";
-import { FiShare2, FiCopy, FiTrash2, FiLock, FiGlobe, FiCheck, FiChevronDown } from "react-icons/fi";
+import {
+  FiShare2,
+  FiCopy,
+  FiTrash2,
+  FiLock,
+  FiGlobe,
+  FiCheck,
+  FiChevronDown,
+} from "react-icons/fi";
+
+type AccessType = "public" | "private";
+type PermissionType = "view" | "comment" | "edit";
 
 interface ShareButtonProps {
   todo_id: string;
@@ -9,55 +21,81 @@ interface ShareButtonProps {
 interface ShareData {
   shared_id: string;
   share_url: string;
-  access_type: "public" | "invited";
-  permission: "read" | "edit" | "viewer";
-  shared_to?: string;
+  access_type: AccessType;
+  permission: PermissionType;
+  shared_email?: string | null;
+}
+
+interface PendingInvite {
+  email: string;
+  permission: PermissionType;
 }
 
 export default function ShareButton({ todo_id }: ShareButtonProps) {
   const [showModal, setShowModal] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  
-  // Share settings
-  const [accessType, setAccessType] = useState<"public" | "invited">("public");
-  const [permission, setPermission] = useState<"read" | "edit" | "viewer">("read");
+
+  const [accessType, setAccessType] = useState<AccessType>("public");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [showAccessDropdown, setShowAccessDropdown] = useState(false);
-  
-  // Current share data
-  const [shareData, setShareData] = useState<ShareData | null>(null);
+  const [permission, setPermission] = useState<PermissionType>("view");
+
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [shareData, setShareData] = useState<ShareData[]>([]);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [showAccessDropdown, setShowAccessDropdown] = useState(false);
 
-  const checkExistingShare = useCallback(async () => {
+  // 🔔 show success/error
+  const showMessage = (msg: string, type: "success" | "error") => {
+    if (type === "success") setSuccessMsg(msg);
+    else setErrorMsg(msg);
+
+    setTimeout(() => {
+      setSuccessMsg(null);
+      setErrorMsg(null);
+    }, 3000);
+  };
+
+  // 📥 fetch share data
+  const fetchShares = useCallback(async () => {
     try {
-      const res = await fetch("/api/shared", {
+      const res = await fetch("/api/shared/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ todo_id, access_type: "public", permission: "read" }),
+        body: JSON.stringify({ todo_id }),
       });
-
+      if (!res.ok) throw new Error("Failed to fetch shares");
       const data = await res.json();
-      if (res.ok && data.shared_id) {
-        setShareData(data);
-        setAccessType(data.access_type || "public");
-        setPermission(data.permission || "read");
-        if (data.shared_to) setInviteEmail(data.shared_to);
-      }
-    } catch (error) {
-      console.error("Error checking existing share:", error);
+      if (!Array.isArray(data)) return;
+
+      setShareData(data);
+      if (data[0]) setAccessType(data[0].access_type || "public");
+    } catch (err) {
+      console.error(err);
+      showMessage("Failed to load shares", "error");
     }
   }, [todo_id]);
 
+  // 🚀 load shares only when modal opened
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+    if (showModal) {
+      fetchShares();
+    }
+  }, [showModal, fetchShares]);
+
+  // 🖱 close modal/dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
         setShowModal(false);
       }
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setShowAccessDropdown(false);
       }
     };
@@ -65,41 +103,31 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Check existing share when modal opens
-  useEffect(() => {
-    if (showModal && !shareData) {
-      checkExistingShare();
-    }
-  }, [showModal, checkExistingShare, shareData]);
+  const validateEmail = (email: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const showMessage = (message: string, type: "success" | "error") => {
-    if (type === "success") {
-      setSuccessMsg(message);
-      setTimeout(() => setSuccessMsg(null), 3000);
-    } else {
-      setErrorMsg(message);
-      setTimeout(() => setErrorMsg(null), 3000);
-    }
-  };
-
-  const handleCreateShare = async () => {
-    setErrorMsg(null);
+  // ➕ create share
+  const createShare = async (invite?: PendingInvite) => {
     setLoading(true);
-    
     try {
       const payload: {
         todo_id: string;
-        access_type: string;
-        permission: string;
-        shared_to?: string;
-      } = { 
-        todo_id, 
-        access_type: accessType, 
-        permission 
+        access_type: AccessType;
+        permission: PermissionType;
+        shared_email?: string;
+      } = {
+        todo_id,
+        access_type: accessType,
+        permission: invite?.permission || permission,
       };
-      
-      if (accessType === "invited" && inviteEmail.trim()) {
-        payload.shared_to = inviteEmail.trim();
+
+      if (accessType === "private") {
+        const emailToUse = invite?.email || inviteEmail;
+        if (!validateEmail(emailToUse)) {
+          showMessage("Invalid email", "error");
+          return null;
+        }
+        payload.shared_email = emailToUse;
       }
 
       const res = await fetch("/api/shared", {
@@ -109,276 +137,321 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
       });
 
       const data = await res.json();
-      if (res.ok && data.share_url) {
-        setShareData(data);
-        showMessage("Share link created!", "success");
-      } else {
-        showMessage(data.error || "Failed to create share", "error");
+      if (!res.ok || !data?.shared_id) {
+        showMessage(data?.error || "Failed to create share", "error");
+        return null;
       }
-    } catch (error) {
-      console.error("Error creating share:", error);
-      showMessage("Something went wrong", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleCopyLink = async () => {
-    if (!shareData?.share_url) return;
-    
-    try {
-      await navigator.clipboard.writeText(shareData.share_url);
-      showMessage("Link copied to clipboard", "success");
-    } catch (error) {
-      showMessage("Failed to copy link", "error");
-    }
-  };
-
-  const handleUpdateShare = async () => {
-    if (!shareData?.shared_id) return;
-    
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-      const payload: {
-        access_type: string;
-        permission: string;
-        shared_to?: string;
-      } = { 
-        access_type: accessType, 
-        permission 
+      const newShare: ShareData = {
+        shared_id: data.shared_id,
+        share_url: data.share_url,
+        access_type: data.access_type,
+        permission: data.permission,
+        shared_email: data.shared_email,
       };
-      
-      if (accessType === "invited" && inviteEmail.trim()) {
-        payload.shared_to = inviteEmail.trim();
-      }
 
-      const res = await fetch(`/api/shared/${shareData.shared_id}`, {
-        method: "PUT",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        setShareData({ ...shareData, access_type: accessType, permission });
-        showMessage("Settings updated", "success");
-      } else {
-        const data = await res.json();
-        showMessage(data.error || "Failed to update", "error");
-      }
-    } catch (error) {
-      console.error("Error updating share:", error);
-      showMessage("Failed to update share", "error");
+      setShareData((prev) => [...prev, newShare]);
+      return newShare;
+    } catch (err) {
+      console.error(err);
+      showMessage("Something went wrong", "error");
+      return null;
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteShare = async () => {
-    if (!shareData?.shared_id || !confirm("Stop sharing this task?")) return;
-    
+  // ✉️ pending invites
+  const handleAddPending = () => {
+    if (!inviteEmail.trim()) return;
+    if (!validateEmail(inviteEmail))
+      return showMessage("Invalid email", "error");
+
+    setPendingInvites((prev) => [
+      ...prev,
+      { email: inviteEmail.trim(), permission },
+    ]);
+    setInviteEmail("");
+    setPermission("view");
+  };
+
+  const handleSendPendingInvites = async () => {
+    for (const invite of pendingInvites) {
+      await createShare(invite);
+    }
+    setPendingInvites([]);
+  };
+
+  // ❌ delete share
+  const handleDeleteShare = async (shared_id: string) => {
+    if (!confirm("Stop sharing this task?")) return;
     setLoading(true);
     try {
-      const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-      const res = await fetch(`/api/shared/${shareData.shared_id}`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${token}` },
-      });
-
-      if (res.ok) {
-        setShareData(null);
-        setAccessType("public");
-        setPermission("read");
-        setInviteEmail("");
-        showMessage("Sharing stopped", "success");
-      } else {
+      const res = await fetch(`/api/shared/${shared_id}`, { method: "DELETE" });
+      if (!res.ok) {
         const data = await res.json();
-        showMessage(data.error || "Failed to stop sharing", "error");
+        showMessage(data?.error || "Failed to stop sharing", "error");
+        return;
       }
-    } catch (error) {
-      console.error("Error deleting share:", error);
+      setShareData((prev) => prev.filter((s) => s.shared_id !== shared_id));
+      showMessage("Sharing stopped", "success");
+    } catch (err) {
+      console.error(err);
       showMessage("Failed to stop sharing", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInvite = () => {
-    if (shareData) {
-      handleUpdateShare();
-    } else {
-      handleCreateShare();
+  // 📋 copy link
+  const handleCopyLink = async () => {
+    let existing = shareData.find((s) => s.access_type === "public");
+    let url = existing?.share_url;
+
+    if (!url) {
+      const newShare = await createShare();
+      if (!newShare)
+        return showMessage("Failed to create share link", "error");
+      url = newShare.share_url;
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      showMessage("Link copied", "success");
+    } catch {
+      window.prompt("Copy this link:", url);
     }
   };
 
+  const getDisplayName = (share: ShareData) => {
+    if (share.access_type === "public") return "Anyone with the link";
+    if (share.access_type === "private") {
+      return share.shared_email?.trim() || "Private user";
+    }
+    return "Unknown user";
+  };
+
+  const getUniqueShares = (shares: ShareData[]) =>
+    shares.filter(
+      (share, idx, self) =>
+        idx === self.findIndex((s) => s.shared_id === share.shared_id)
+    );
+
   return (
     <>
+      {/* Share button */}
       <button
         type="button"
         onClick={() => setShowModal(true)}
-        className={`px-4 py-2 rounded-lg border transition-colors text-sm font-medium ${
-          shareData 
-            ? "bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-700 hover:text-white" 
-            : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+        className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+          shareData.length > 0
+            ? "bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-700 hover:text-white"
+            : "bg-white border-gray-300 text-gray-900 hover:bg-gray-50"
         }`}
       >
-        <FiShare2 className="w-4 h-4 inline mr-2" />
-        Share
+        <FiShare2 className="inline mr-2" /> Share
       </button>
 
+      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
-          <div 
+          <div
             ref={modalRef}
             className="bg-white rounded-lg shadow-xl w-full max-w-md"
           >
             {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-medium text-gray-900">Share Task</h2>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+            <div className="px-6 py-4 border-b flex justify-between items-center">
+              <h2 className="text-lg font-medium text-gray-900">Share Task</h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1"
+              >
+                ✕
+              </button>
             </div>
 
-            {/* Content */}
+            {/* Body */}
             <div className="px-6 py-4 space-y-4">
-              {/* Email Input */}
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  placeholder="Add people and groups"
-                  value={inviteEmail}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInviteEmail(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900"
-                />
-                <button
-                  onClick={handleInvite}
-                  disabled={loading || (accessType === "invited" && !inviteEmail.trim())}
-                  className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm font-medium"
-                >
-                  {loading ? "..." : shareData ? "Update" : "Invite"}
-                </button>
-              </div>
-
-              {/* Invited Users (if any) */}
-              {shareData?.shared_to && (
-                <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      {shareData.shared_to.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-sm text-gray-900">{shareData.shared_to}</span>
-                  </div>
-                  <select
-                    value={permission}
-                    onChange={(e) => setPermission(e.target.value as "read" | "edit" | "viewer")}
-                    className="text-sm border-none bg-transparent focus:ring-0 text-gray-600"
-                  >
-                    <option value="read">Can view</option>
-                    <option value="viewer">Can view (detailed)</option>
-                    <option value="edit">Can edit</option>
-                  </select>
-                </div>
-              )}
-
-              {/* General Access */}
+              {/* Access type */}
               <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-3">General access</h3>
+                <h3 className="text-sm font-medium mb-2 text-gray-900">
+                  General access
+                </h3>
                 <div className="relative" ref={dropdownRef}>
                   <button
-                    onClick={() => setShowAccessDropdown(!showAccessDropdown)}
-                    className="w-full flex items-center justify-between p-3 border border-gray-300 rounded-lg hover:bg-gray-50 text-left"
+                    onClick={() => setShowAccessDropdown((s) => !s)}
+                    className="w-full flex justify-between items-center p-3 border rounded text-gray-900"
                   >
-                    <div className="flex items-center gap-3">
-                      {accessType === "public" ? (
-                        <FiGlobe className="w-5 h-5 text-gray-600" />
-                      ) : (
-                        <FiLock className="w-5 h-5 text-gray-600" />
-                      )}
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {accessType === "public" ? "Anyone with the link" : "Only people invited"}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {accessType === "public" ? "Anyone on the internet with the link can view" : "Only people you invite can access"}
-                        </div>
-                      </div>
-                    </div>
-                    <FiChevronDown className="w-4 h-4 text-gray-600" />
+                    <span className="flex items-center gap-2">
+                      {accessType === "public" ? <FiGlobe /> : <FiLock />}
+                      {accessType === "public"
+                        ? "Anyone with the link"
+                        : "Private"}
+                    </span>
+                    <FiChevronDown />
                   </button>
 
                   {showAccessDropdown && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                      <button
-                        onClick={() => {
-                          setAccessType("invited");
-                          setShowAccessDropdown(false);
-                        }}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left"
-                      >
-                        <FiLock className="w-5 h-5 text-gray-600" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">Only people invited</div>
-                          <div className="text-xs text-gray-500">Only people you invite can access</div>
-                        </div>
-                        {accessType === "invited" && <FiCheck className="w-4 h-4 text-blue-600 ml-auto" />}
-                      </button>
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded shadow z-10">
                       <button
                         onClick={() => {
                           setAccessType("public");
                           setShowAccessDropdown(false);
                         }}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 text-left"
+                        className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center justify-between text-gray-900"
                       >
-                        <FiGlobe className="w-5 h-5 text-gray-600" />
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">Anyone with the link</div>
-                          <div className="text-xs text-gray-500">Anyone on the internet with the link can view</div>
+                        <div className="flex items-center gap-2">
+                          <FiGlobe />
+                          <span>Anyone with the link</span>
                         </div>
-                        {accessType === "public" && <FiCheck className="w-4 h-4 text-blue-600 ml-auto" />}
+                        {accessType === "public" && (
+                          <FiCheck className="text-teal-600" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAccessType("private");
+                          setShowAccessDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center justify-between text-gray-900"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FiLock />
+                          <span>Private</span>
+                        </div>
+                        {accessType === "private" && (
+                          <FiCheck className="text-teal-600" />
+                        )}
                       </button>
                     </div>
                   )}
                 </div>
               </div>
+
+              {/* Private invite */}
+              {accessType === "private" && (
+                <div className="space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="email"
+                      placeholder="Add people by email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      className="flex-1 px-3 py-2 border rounded-lg text-sm text-gray-900 placeholder-gray-400 outline-none"
+                    />
+                    <select
+                      value={permission}
+                      onChange={(e) =>
+                        setPermission(e.target.value as PermissionType)
+                      }
+                      className="px-2 py-1 border rounded text-gray-900"
+                    >
+                      <option value="view">View</option>
+                      <option value="comment">Comment</option>
+                      <option value="edit">Edit</option>
+                    </select>
+                    <button
+                      onClick={handleAddPending}
+                      disabled={!inviteEmail.trim()}
+                      className="px-3 py-1.5 bg-teal-600 text-white rounded hover:bg-teal-700 disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {/* Pending */}
+                  {pendingInvites.map((invite, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 bg-gray-50 p-2 rounded"
+                    >
+                      <span className="flex-1 text-gray-900">
+                        {invite.email}
+                      </span>
+                      <select
+                        value={invite.permission}
+                        onChange={(e) => {
+                          const newPending = [...pendingInvites];
+                          newPending[idx].permission =
+                            e.target.value as PermissionType;
+                          setPendingInvites(newPending);
+                        }}
+                        className="px-2 py-1 border rounded text-gray-900"
+                      >
+                        <option value="view">View</option>
+                        <option value="comment">Comment</option>
+                        <option value="edit">Edit</option>
+                      </select>
+                      <button
+                        onClick={() =>
+                          setPendingInvites((prev) =>
+                            prev.filter((_, i) => i !== idx)
+                          )
+                        }
+                        className="text-red-500 px-2"
+                      >
+                        <FiTrash2 />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Existing shares */}
+              {shareData.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium mt-4 mb-2 text-gray-900">
+                    Shared with
+                  </h3>
+                  {getUniqueShares(shareData).map((share) => (
+                    <div
+                      key={share.shared_id}
+                      className="flex justify-between items-center p-2 border rounded mb-1"
+                    >
+                      <div className="flex-1">
+                        <span className="text-gray-900 font-medium">
+                          {getDisplayName(share)}
+                        </span>
+                        <div className="text-xs text-gray-500 capitalize">
+                          {share.permission} • {share.access_type}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteShare(share.shared_id)}
+                        className="text-red-500 px-2 hover:text-red-700"
+                        disabled={loading}
+                      >
+                        <FiTrash2 />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+            <div className="px-6 py-4 border-t flex justify-between items-center">
               <div className="flex gap-2">
-                {shareData && (
-                  <>
-                    <button
-                      onClick={handleCopyLink}
-                      className="flex items-center gap-2 px-3 py-1.5 text-teal-600 hover:bg-blue-50 rounded text-sm"
-                    >
-                      <FiCopy className="w-4 h-4" />
-                      Copy link
-                    </button>
-                    <button
-                      onClick={handleDeleteShare}
-                      disabled={loading}
-                      className="flex items-center gap-2 px-3 py-1.5 text-red-600 hover:bg-red-50 rounded text-sm disabled:opacity-50"
-                    >
-                      <FiTrash2 className="w-4 h-4" />
-                      Stop sharing
-                    </button>
-                  </>
+                <button
+                  onClick={handleCopyLink}
+                  disabled={loading}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-teal-50 text-teal-700 rounded hover:bg-teal-600 hover:text-white text-sm disabled:opacity-50"
+                >
+                  <FiCopy /> Copy link
+                </button>
+                {pendingInvites.length > 0 && accessType === "private" && (
+                  <button
+                    onClick={handleSendPendingInvites}
+                    disabled={loading}
+                    className="px-3 py-1.5 bg-teal-600 text-white rounded hover:bg-teal-700 text-sm disabled:opacity-50"
+                  >
+                    {loading ? "Sending..." : "Send Invites"}
+                  </button>
                 )}
               </div>
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                className="text-sm text-gray-600 hover:text-gray-800"
               >
                 Done
               </button>
@@ -387,15 +460,14 @@ export default function ShareButton({ todo_id }: ShareButtonProps) {
         </div>
       )}
 
-      {/* Toast Messages */}
+      {/* Toast */}
       {successMsg && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg z-[9999] text-sm">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded shadow text-sm z-[10000]">
           {successMsg}
         </div>
       )}
-
       {errorMsg && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-[9999] text-sm">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded shadow text-sm z-[10000]">
           {errorMsg}
         </div>
       )}

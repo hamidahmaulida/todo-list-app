@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { FiPlus } from "react-icons/fi";
 import { TodoWithExtras } from "@/types/task";
 
@@ -27,20 +27,32 @@ export default function TaskForm({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Sync with initialData
-  useEffect(() => { setTitle(initialData?.title ?? ""); }, [initialData?.title]);
-  useEffect(() => { setContent(initialData?.content ?? ""); }, [initialData?.content]);
-  useEffect(() => { setTags(initialData?.tags ?? []); }, [initialData?.tags]);
+  // Sync initialData **hanya saat modal pertama dibuka atau data berubah**
+  useEffect(() => {
+    if (initialData) {
+      setTitle(initialData.title ?? "");
+      setContent(initialData.content ?? "");
+      setTags(initialData.tags ?? []);
+    }
+  }, [initialData?.todo_id]); // dependency tetap
 
-  // Notify parent
-  useEffect(() => { if (onCharChange) onCharChange(title.length + content.length); }, [title, content, onCharChange]);
-  useEffect(() => { if (onChange) onChange({ title, content, tags }); }, [title, content, tags, onChange]);
+  // Notify parent dengan useCallback agar tidak memicu loop
+  const notifyParent = useCallback(() => {
+    const totalChars = title.length + content.length;
+    onCharChange?.(totalChars);
+    onChange?.({ title, content, tags });
+  }, [title, content, tags, onChange, onCharChange]);
+
+  useEffect(() => {
+    notifyParent();
+  }, [notifyParent]);
 
   const handleAddTag = (tag: string) => {
     const trimmed = tag.trim();
     if (!trimmed) return;
-    if (!tags.includes(trimmed)) {
-      setTags([...tags, trimmed]);
+    const normalized = trimmed.toLowerCase();
+    if (!tags.includes(normalized)) {
+      setTags([...tags, normalized]);
       setShowDropdown(false);
     }
     setTagInput("");
@@ -48,19 +60,16 @@ export default function TaskForm({
 
   const handleRemoveTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
 
-  const filteredTags: string[] = existingTags.filter(
-    (t) => t.toLowerCase().includes(tagInput.toLowerCase()) && !tags.includes(t)
+  const filteredTags = existingTags.filter(
+    (t) => t.toLowerCase().includes(tagInput.toLowerCase()) && !tags.includes(t.toLowerCase())
   );
 
-  // Klik di luar dropdown/input -> tutup dropdown
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
         !inputRef.current?.contains(e.target as Node) &&
         !dropdownRef.current?.contains(e.target as Node)
-      ) {
-        setShowDropdown(false);
-      }
+      ) setShowDropdown(false);
     };
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
@@ -80,10 +89,18 @@ export default function TaskForm({
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
           {tags.map((tag) => (
-            <span key={tag} className="bg-[#0F766E] text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">
+            <span
+              key={tag}
+              className="bg-[#0F766E] text-white px-2 py-1 rounded-full text-xs flex items-center gap-1"
+            >
               {tag}
               {!readOnly && (
-                <button type="button" onClick={() => handleRemoveTag(tag)} className="ml-1 text-white/80 hover:text-white">
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTag(tag)}
+                  className="ml-1 text-white/80 hover:text-white"
+                  aria-disabled={readOnly}
+                >
                   ×
                 </button>
               )}
@@ -104,15 +121,25 @@ export default function TaskForm({
             />
 
             {showDropdown && (filteredTags.length > 0 || tagInput) && (
-              <div ref={dropdownRef} className="absolute mt-1 w-full bg-white border rounded shadow max-h-40 overflow-y-auto z-50">
+              <div
+                ref={dropdownRef}
+                className="absolute mt-1 w-full bg-white border rounded shadow max-h-40 overflow-y-auto z-50"
+              >
                 {filteredTags.map((tag) => (
-                  <div key={tag} className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-sm text-gray-900" onClick={() => handleAddTag(tag)}>
+                  <div
+                    key={tag}
+                    className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-sm text-gray-900"
+                    onClick={() => handleAddTag(tag)}
+                  >
                     {tag}
                   </div>
                 ))}
                 {tagInput && (
-                  <div className="px-2 py-1 flex items-center gap-1 text-sm text-blue-600 cursor-pointer hover:bg-blue-50" onClick={() => handleAddTag(tagInput)}>
-                    <FiPlus /> Create &quot;{tagInput}&quot;
+                  <div
+                    className="px-2 py-1 flex items-center gap-1 text-sm text-blue-600 cursor-pointer hover:bg-blue-50"
+                    onClick={() => handleAddTag(tagInput)}
+                  >
+                    <FiPlus /> Create "{tagInput}"
                   </div>
                 )}
               </div>

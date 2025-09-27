@@ -1,6 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
+import UserSyncProvider from "@/components/UserSyncProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,22 +17,32 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Taskly",
   description: "Simple Todo List App",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default function RootLayout({ 
+  children 
+}: { 
+  children: React.ReactNode 
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="icon" href="/favicon.ico" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}>
-        {children}
-      </body>
-    </html>
+    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
+      <html lang="en">
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
+        >
+          <UserSyncProvider>
+            {children}
+          </UserSyncProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
