@@ -87,6 +87,32 @@ export async function GET() {
 }
 
 // =========================
+// Helper: ensure user exists in Supabase
+// =========================
+async function ensureUserExists(userId: string) {
+  try {
+    const { data: existing } = await supabase
+      .from("users")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (existing) return;
+
+    // User doesn't exist, create with minimal data
+    await supabase.from("users").insert({
+      user_id: userId,
+      email: `${userId}@temp.com`, // temporary email
+      full_name: "New User",
+      created_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error ensuring user exists:", error);
+    // Continue anyway
+  }
+}
+
+// =========================
 // POST /api/todos
 // =========================
 export async function POST(req: NextRequest) {
@@ -96,6 +122,9 @@ export async function POST(req: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Ensure user exists in Supabase
+    await ensureUserExists(userId);
 
     const body = await req.json();
     const { title = "", content = "", tags = [] } = body;
