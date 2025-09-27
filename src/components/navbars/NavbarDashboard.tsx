@@ -239,7 +239,7 @@ const getInitial = (name?: string) => {
         <button onClick={onToggleSidebar} className="lg:hidden p-2 rounded hover:bg-gray-100">
           <FiMenu className="w-6 h-6 text-[#0F766E]" />
         </button>
-        <span className="text-lg font-semibold text-green-800">Dashboard</span>
+        <span className="text-lg font-semibold text-teal-800">Dashboard</span>
       </div>
 
       <div className="flex items-center gap-3">
