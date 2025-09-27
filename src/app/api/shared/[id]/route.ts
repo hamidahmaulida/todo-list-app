@@ -11,10 +11,10 @@ const supabase = createClient(
 // ------------------- GET -------------------
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     if (!id) return NextResponse.json({ error: "Missing shared ID" }, { status: 400 });
 
     const { data: sharedNote, error: sharedError } = await supabase
@@ -62,10 +62,10 @@ export async function GET(
 // ------------------- PUT -------------------
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     if (!id) return NextResponse.json({ error: "Missing shared ID" }, { status: 400 });
 
     const { userId } = await auth();
@@ -186,10 +186,10 @@ export async function PUT(
 // ------------------- DELETE -------------------
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     if (!id) return NextResponse.json({ error: "Missing shared ID" }, { status: 400 });
 
     const { userId } = await auth();
