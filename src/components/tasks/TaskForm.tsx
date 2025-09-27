@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { FiPlus } from "react-icons/fi";
 import { TodoWithExtras } from "@/types/task";
 
@@ -12,81 +12,68 @@ interface TaskFormProps {
 }
 
 export default function TaskForm({
-  initialData,
+  initialData = {},
   existingTags,
   onChange,
   onCharChange,
   readOnly = false,
 }: TaskFormProps) {
-  const [title, setTitle] = useState(initialData?.title ?? "");
-  const [content, setContent] = useState(initialData?.content ?? "");
-  const [tags, setTags] = useState<string[]>(initialData?.tags ?? []);
-  const [tagInput, setTagInput] = useState("");
+  // pastikan ga pernah null/undefined
+  const title = initialData.title ?? "";
+  const content = initialData.content ?? "";
+  const tags = initialData.tags ?? [];
+
+  // hanya state untuk UI tambahan (tag input, dropdown)
+  const [tagInput, setTagInput] = useState<string>(""); // fix: selalu string
   const [showDropdown, setShowDropdown] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Sync initialData hanya saat modal pertama dibuka atau data berubah
-  useEffect(() => {
-  if (initialData) {
-    setTitle(initialData.title ?? "");
-    setContent(initialData.content ?? "");
-    setTags(initialData.tags ?? []);
-  }
-}, [initialData]);
+  // helper update ke parent
+  const handleChange = (field: keyof TodoWithExtras, value: any) => {
+    const updated = { ...initialData, [field]: value };
+    onChange?.(updated);
 
-
-  // Notify parent dengan useCallback agar tidak memicu loop
-  const notifyParent = useCallback(() => {
-    const totalChars = title.length + content.length;
+    const totalChars =
+      (updated.title?.length ?? 0) + (updated.content?.length ?? 0);
     onCharChange?.(totalChars);
-    onChange?.({ title, content, tags });
-  }, [title, content, tags, onChange, onCharChange]);
-
-  useEffect(() => {
-    notifyParent();
-  }, [notifyParent]);
-
-  const handleAddTag = (tag: string) => {
-    const trimmed = tag.trim();
-    if (!trimmed) return;
-    const normalized = trimmed.toLowerCase();
-    if (!tags.includes(normalized)) {
-      setTags([...tags, normalized]);
-      setShowDropdown(false);
-    }
-    setTagInput("");
   };
 
-  const handleRemoveTag = (tag: string) => setTags(tags.filter((t) => t !== tag));
+  const handleAddTag = (tag: string) => {
+    const trimmed = tag.trim().toLowerCase();
+    if (!trimmed || tags.includes(trimmed)) return;
+    handleChange("tags", [...tags, trimmed]);
+    setTagInput("");
+    setShowDropdown(false);
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    handleChange(
+      "tags",
+      tags.filter((t) => t !== tag)
+    );
+  };
 
   const filteredTags = existingTags.filter(
-    (t) => t.toLowerCase().includes(tagInput.toLowerCase()) && !tags.includes(t.toLowerCase())
+    (t) =>
+      t.toLowerCase().includes(tagInput.toLowerCase()) &&
+      !tags.includes(t.toLowerCase())
   );
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        !inputRef.current?.contains(e.target as Node) &&
-        !dropdownRef.current?.contains(e.target as Node)
-      ) setShowDropdown(false);
-    };
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
 
   return (
     <div className="space-y-4">
+      {/* Title */}
       <input
         type="text"
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={(e) => handleChange("title", e.target.value)}
         disabled={readOnly}
         placeholder="Task title"
         className="w-full text-xl font-semibold border-b focus:outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-500 placeholder-gray-400"
       />
 
+      {/* Tags */}
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
           {tags.map((tag) => (
@@ -100,7 +87,6 @@ export default function TaskForm({
                   type="button"
                   onClick={() => handleRemoveTag(tag)}
                   className="ml-1 text-white/80 hover:text-white"
-                  aria-disabled={readOnly}
                 >
                   ×
                 </button>
@@ -114,11 +100,14 @@ export default function TaskForm({
             <input
               ref={inputRef}
               type="text"
-              value={tagInput}
-              onChange={(e) => { setTagInput(e.target.value); setShowDropdown(true); }}
+              value={tagInput} // selalu string
+              onChange={(e) => {
+                setTagInput(e.target.value);
+                setShowDropdown(true);
+              }}
               onFocus={() => setShowDropdown(true)}
               placeholder="Add a tag..."
-              className="w-full border rounded px-2 py-1 text-sm outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
+              className="w-full border rounded px-2 py-1 text-sm outline-none text-gray-900"
             />
 
             {showDropdown && (filteredTags.length > 0 || tagInput) && (
@@ -149,9 +138,10 @@ export default function TaskForm({
         )}
       </div>
 
+      {/* Content */}
       <textarea
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={(e) => handleChange("content", e.target.value)}
         disabled={readOnly}
         placeholder="Write your task..."
         className="w-full h-40 border p-2 rounded-md focus:outline-none text-gray-900 disabled:bg-gray-50 disabled:text-gray-500"
