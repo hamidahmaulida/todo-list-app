@@ -7,7 +7,7 @@ export default function NavbarPublic() {
       {/* Logo */}
       <Link href="/" className="flex items-center space-x-2">
         <Image src="/logo.svg" alt="Logo" width={30} height={30} />
-        <span className="font-bold text-xl text-green-800">Taskly</span>
+        <span className="font-bold text-xl text-teal-800">Taskly</span>
       </Link>
 
       {/* Menu + CTA */}
