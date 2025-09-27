@@ -9,10 +9,10 @@ const isPublicRoute = createRouteMatcher([
 
 export default clerkMiddleware((auth, req) => {
   if (isPublicRoute(req)) {
-    return NextResponse.next(); // public → lanjut
+    return NextResponse.next(); // public route
   }
 
-  // private → Clerk otomatis blokir kalau ga login
+  // private route → Clerk handle otomatis
   return NextResponse.next();
 });
 
